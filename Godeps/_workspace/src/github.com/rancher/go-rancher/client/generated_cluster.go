@@ -25,6 +25,8 @@ type Cluster struct {
 
 	DiscoverySpec string `json:"discoverySpec,omitempty" yaml:"discovery_spec,omitempty"`
 
+	Hostname string `json:"hostname,omitempty" yaml:"hostname,omitempty"`
+
 	Info interface{} `json:"info,omitempty" yaml:"info,omitempty"`
 
 	Kind string `json:"kind,omitempty" yaml:"kind,omitempty"`
@@ -36,6 +38,8 @@ type Cluster struct {
 	PhysicalHostId string `json:"physicalHostId,omitempty" yaml:"physical_host_id,omitempty"`
 
 	Port int64 `json:"port,omitempty" yaml:"port,omitempty"`
+
+	PublicEndpoints []interface{} `json:"publicEndpoints,omitempty" yaml:"public_endpoints,omitempty"`
 
 	RemoveTime string `json:"removeTime,omitempty" yaml:"remove_time,omitempty"`
 
@@ -76,6 +80,8 @@ type ClusterOperations interface {
 
 	ActionDeactivate(*Cluster) (*Host, error)
 
+	ActionDockersocket(*Cluster) (*HostAccess, error)
+
 	ActionPurge(*Cluster) (*Host, error)
 
 	ActionRemove(*Cluster) (*Host, error)
@@ -114,6 +120,11 @@ func (c *ClusterClient) List(opts *ListOpts) (*ClusterCollection, error) {
 func (c *ClusterClient) ById(id string) (*Cluster, error) {
 	resp := &Cluster{}
 	err := c.rancherClient.doById(CLUSTER_TYPE, id, resp)
+	if apiError, ok := err.(*ApiError); ok {
+		if apiError.StatusCode == 404 {
+			return nil, nil
+		}
+	}
 	return resp, err
 }
 
@@ -153,6 +164,15 @@ func (c *ClusterClient) ActionDeactivate(resource *Cluster) (*Host, error) {
 	resp := &Host{}
 
 	err := c.rancherClient.doAction(CLUSTER_TYPE, "deactivate", &resource.Resource, nil, resp)
+
+	return resp, err
+}
+
+func (c *ClusterClient) ActionDockersocket(resource *Cluster) (*HostAccess, error) {
+
+	resp := &HostAccess{}
+
+	err := c.rancherClient.doAction(CLUSTER_TYPE, "dockersocket", &resource.Resource, nil, resp)
 
 	return resp, err
 }

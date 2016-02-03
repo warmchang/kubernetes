@@ -58,19 +58,11 @@ type MountOperations interface {
 	ById(id string) (*Mount, error)
 	Delete(container *Mount) error
 
-	ActionActivate(*Mount) (*Mount, error)
-
 	ActionCreate(*Mount) (*Mount, error)
 
 	ActionDeactivate(*Mount) (*Mount, error)
 
-	ActionPurge(*Mount) (*Mount, error)
-
 	ActionRemove(*Mount) (*Mount, error)
-
-	ActionRestore(*Mount) (*Mount, error)
-
-	ActionUpdate(*Mount) (*Mount, error)
 }
 
 func newMountClient(rancherClient *RancherClient) *MountClient {
@@ -100,20 +92,16 @@ func (c *MountClient) List(opts *ListOpts) (*MountCollection, error) {
 func (c *MountClient) ById(id string) (*Mount, error) {
 	resp := &Mount{}
 	err := c.rancherClient.doById(MOUNT_TYPE, id, resp)
+	if apiError, ok := err.(*ApiError); ok {
+		if apiError.StatusCode == 404 {
+			return nil, nil
+		}
+	}
 	return resp, err
 }
 
 func (c *MountClient) Delete(container *Mount) error {
 	return c.rancherClient.doResourceDelete(MOUNT_TYPE, &container.Resource)
-}
-
-func (c *MountClient) ActionActivate(resource *Mount) (*Mount, error) {
-
-	resp := &Mount{}
-
-	err := c.rancherClient.doAction(MOUNT_TYPE, "activate", &resource.Resource, nil, resp)
-
-	return resp, err
 }
 
 func (c *MountClient) ActionCreate(resource *Mount) (*Mount, error) {
@@ -134,38 +122,11 @@ func (c *MountClient) ActionDeactivate(resource *Mount) (*Mount, error) {
 	return resp, err
 }
 
-func (c *MountClient) ActionPurge(resource *Mount) (*Mount, error) {
-
-	resp := &Mount{}
-
-	err := c.rancherClient.doAction(MOUNT_TYPE, "purge", &resource.Resource, nil, resp)
-
-	return resp, err
-}
-
 func (c *MountClient) ActionRemove(resource *Mount) (*Mount, error) {
 
 	resp := &Mount{}
 
 	err := c.rancherClient.doAction(MOUNT_TYPE, "remove", &resource.Resource, nil, resp)
-
-	return resp, err
-}
-
-func (c *MountClient) ActionRestore(resource *Mount) (*Mount, error) {
-
-	resp := &Mount{}
-
-	err := c.rancherClient.doAction(MOUNT_TYPE, "restore", &resource.Resource, nil, resp)
-
-	return resp, err
-}
-
-func (c *MountClient) ActionUpdate(resource *Mount) (*Mount, error) {
-
-	resp := &Mount{}
-
-	err := c.rancherClient.doAction(MOUNT_TYPE, "update", &resource.Resource, nil, resp)
 
 	return resp, err
 }

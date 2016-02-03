@@ -15,6 +15,12 @@ type Volume struct {
 
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 
+	Driver string `json:"driver,omitempty" yaml:"driver,omitempty"`
+
+	DriverOpts map[string]interface{} `json:"driverOpts,omitempty" yaml:"driver_opts,omitempty"`
+
+	ExternalId string `json:"externalId,omitempty" yaml:"external_id,omitempty"`
+
 	ImageId string `json:"imageId,omitempty" yaml:"image_id,omitempty"`
 
 	InstanceId string `json:"instanceId,omitempty" yaml:"instance_id,omitempty"`
@@ -104,6 +110,11 @@ func (c *VolumeClient) List(opts *ListOpts) (*VolumeCollection, error) {
 func (c *VolumeClient) ById(id string) (*Volume, error) {
 	resp := &Volume{}
 	err := c.rancherClient.doById(VOLUME_TYPE, id, resp)
+	if apiError, ok := err.(*ApiError); ok {
+		if apiError.StatusCode == 404 {
+			return nil, nil
+		}
+	}
 	return resp, err
 }
 
