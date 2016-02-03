@@ -15,6 +15,10 @@ type PhysicalHost struct {
 
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 
+	Driver string `json:"driver,omitempty" yaml:"driver,omitempty"`
+
+	ExternalId string `json:"externalId,omitempty" yaml:"external_id,omitempty"`
+
 	Kind string `json:"kind,omitempty" yaml:"kind,omitempty"`
 
 	Name string `json:"name,omitempty" yaml:"name,omitempty"`
@@ -88,6 +92,11 @@ func (c *PhysicalHostClient) List(opts *ListOpts) (*PhysicalHostCollection, erro
 func (c *PhysicalHostClient) ById(id string) (*PhysicalHost, error) {
 	resp := &PhysicalHost{}
 	err := c.rancherClient.doById(PHYSICAL_HOST_TYPE, id, resp)
+	if apiError, ok := err.(*ApiError); ok {
+		if apiError.StatusCode == 404 {
+			return nil, nil
+		}
+	}
 	return resp, err
 }
 

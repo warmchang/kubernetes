@@ -151,7 +151,7 @@ func (r *CloudProvider) EnsureTCPLoadBalancer(name, region string, loadBalancerI
 		lb = &client.LoadBalancerService{
 			Name:          name,
 			EnvironmentId: env.Id,
-			LaunchConfig: client.LaunchConfig{
+			LaunchConfig: &client.LaunchConfig{
 				Ports: lbPorts,
 			},
 		}
@@ -562,8 +562,8 @@ func (r *CloudProvider) List(filter string) ([]string, error) {
 
 	retHosts := []string{}
 	for _, host := range hosts.Data {
-		if re.MatchString(host.Name) {
-			retHosts = append(retHosts, host.Name)
+		if re.MatchString(host.Hostname) {
+			retHosts = append(retHosts, host.Hostname)
 		}
 	}
 
@@ -583,7 +583,6 @@ func (r *CloudProvider) CurrentNodeName(hostname string) (string, error) {
 
 func (r *CloudProvider) getHostByName(name string) (*client.Host, error) {
 	opts := client.NewListOpts()
-	opts.Filters["name"] = name
 	opts.Filters["removed_null"] = "1"
 	hosts, err := r.client.Host.List(opts)
 	if err != nil {
@@ -594,11 +593,16 @@ func (r *CloudProvider) getHostByName(name string) (*client.Host, error) {
 		return nil, cloudprovider.InstanceNotFound
 	}
 
-	if len(hosts.Data) != 1 {
+	hostsToReturn := make([]client.Host, 0)
+	for _, host := range hosts.Data {
+		if host.Hostname == name {
+			hostsToReturn = append(hostsToReturn, host)
+		}
+	}
+	if len(hostsToReturn) > 1 {
 		return nil, fmt.Errorf("multiple instances found for name: %s", name)
 	}
-
-	return &hosts.Data[0], nil
+	return &hostsToReturn[0], nil
 }
 
 // --- Zones Functions ---

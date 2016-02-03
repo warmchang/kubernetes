@@ -881,8 +881,8 @@
 		},
 		{
 			"ImportPath": "github.com/rancher/go-rancher/client",
-			"Comment": "v0.1.0-69-g179d8a4",
-			"Rev": "179d8a42a477d2de0a4e7a4f5a99df67d80ed1d8"
+			"Comment": "v0.1.0-133-gd784e76",
+            "Rev": "d784e766741307e0eda2e48bc3f83e725abf8af0"
 		},
 		{
 			"ImportPath": "github.com/russross/blackfriday",
