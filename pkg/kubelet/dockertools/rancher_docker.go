@@ -9,6 +9,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/hashicorp/golang-lru"
 	rancher "github.com/rancher/go-rancher/client"
+	"k8s.io/kubernetes/pkg/kubelet/types"
 )
 
 type RancherDockerClient struct {
@@ -31,7 +32,7 @@ func NewRancherClient(docker DockerInterface, rancher *rancher.RancherClient) (*
 }
 
 func isPodContainer(config *docker.Config) bool {
-	return config.Image == PodInfraContainerImage
+	return config.Image == types.PodInfraContainerImage
 }
 
 func (r *RancherDockerClient) CreateContainer(createOpts docker.CreateContainerOptions) (*docker.Container, error) {
@@ -67,7 +68,7 @@ func (r *RancherDockerClient) InspectContainer(id string) (*docker.Container, er
 }
 
 func (r *RancherDockerClient) trySetIp(container *docker.Container) error {
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 600; i++ {
 		worked, err := r.setIp(container)
 		if err != nil {
 			glog.Errorf("Failed to find IP for %s: %v\n", container.ID, err)
