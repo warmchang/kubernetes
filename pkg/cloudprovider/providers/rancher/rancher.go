@@ -19,6 +19,7 @@ import (
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/types"
 )
 
 const (
@@ -27,7 +28,7 @@ const (
 	kubernetesEnvName string = "kubernetes-loadbalancers"
 )
 
-// CloudProvider implents Instances, Zones, and TCPLoadBalancer
+// CloudProvider implents Instances, Zones, and LoadBalancer
 type CloudProvider struct {
 	client *client.RancherClient
 }
@@ -42,8 +43,8 @@ func (r *CloudProvider) ScrubDNS(nameservers, searches []string) (nsOut, srchOut
 	return nameservers, searches
 }
 
-// TCPLoadBalancer returns an implementation of TCPLoadBalancer for Rancher
-func (r *CloudProvider) TCPLoadBalancer() (cloudprovider.TCPLoadBalancer, bool) {
+// LoadBalancer returns an implementation of LoadBalancer for Rancher
+func (r *CloudProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	return r, true
 }
 
@@ -67,7 +68,7 @@ func (r *CloudProvider) Routes() (cloudprovider.Routes, bool) {
 	return nil, false
 }
 
-// --- TCPLoadBalancer Functions ---
+// --- LoadBalancer Functions ---
 
 type instanceCollection struct {
 	Data []instanceAndHost `json:"data,omitempty"`
@@ -87,10 +88,10 @@ type hostAndIPAddresses struct {
 	IPAddresses []client.IpAddress `json:"ipAddresses,omitempty"`
 }
 
-// GetTCPLoadBalancer is an implementation of TCPLoadBalancer.GetTCPLoadBalancer
-func (r *CloudProvider) GetTCPLoadBalancer(name, region string) (status *api.LoadBalancerStatus, exists bool, retErr error) {
+// GetLoadBalancer is an implementation of LoadBalancer.GetLoadBalancer
+func (r *CloudProvider) GetLoadBalancer(name, region string) (status *api.LoadBalancerStatus, exists bool, retErr error) {
 	name = formatLBName(name)
-	glog.Infof("GetTCPLoadBalancer [%s] [%s]", name, region)
+	glog.Infof("GetLoadBalancer [%s] [%s]", name, region)
 
 	lb, err := r.getLBByName(name)
 	if err != nil {
@@ -104,11 +105,11 @@ func (r *CloudProvider) GetTCPLoadBalancer(name, region string) (status *api.Loa
 	return r.toLBStatus(lb)
 }
 
-// EnsureTCPLoadBalancer is an implementation of TCPLoadBalancer.EnsureTCPLoadBalancer.
-func (r *CloudProvider) EnsureTCPLoadBalancer(name, region string, loadBalancerIP net.IP, ports []*api.ServicePort, hosts []string,
-	affinity api.ServiceAffinity) (*api.LoadBalancerStatus, error) {
+// EnsureLoadBalancer is an implementation of LoadBalancer.EnsureLoadBalancer.
+func (r *CloudProvider) EnsureLoadBalancer(name, region string, loadBalancerIP net.IP, ports []*api.ServicePort, hosts []string,
+	namespace types.NamespacedName, affinity api.ServiceAffinity) (*api.LoadBalancerStatus, error) {
 	name = formatLBName(name)
-	glog.Infof("EnsureTCPLoadBalancer [%s] [%s] [%#v] [%#v] [%s] [%s]", name, region, loadBalancerIP, ports, hosts, affinity)
+	glog.Infof("EnsureLoadBalancer [%s] [%s] [%#v] [%#v] [%s] [%s]", name, region, loadBalancerIP, ports, hosts, affinity)
 
 	if loadBalancerIP != nil {
 		// Rancher doesn't support specifying loadBalancer IP
@@ -200,10 +201,10 @@ func convertLB(intf interface{}) *client.LoadBalancerService {
 	return lb
 }
 
-// UpdateTCPLoadBalancer is an implementation of TCPLoadBalancer.UpdateTCPLoadBalancer.
-func (r *CloudProvider) UpdateTCPLoadBalancer(name, region string, hosts []string) error {
+// UpdateLoadBalancer is an implementation of LoadBalancer.UpdateLoadBalancer.
+func (r *CloudProvider) UpdateLoadBalancer(name, region string, hosts []string) error {
 	name = formatLBName(name)
-	glog.Infof("UpdateTCPLoadBalancer [%s] [%s] [%s]", name, region, hosts)
+	glog.Infof("UpdateLoadBalancer [%s] [%s] [%s]", name, region, hosts)
 	lb, err := r.getLBByName(name)
 	if err != nil {
 		return err
@@ -226,10 +227,10 @@ func (r *CloudProvider) UpdateTCPLoadBalancer(name, region string, hosts []strin
 	return nil
 }
 
-// EnsureTCPLoadBalancerDeleted is an implementation of TCPLoadBalancer.EnsureTCPLoadBalancerDeleted.
-func (r *CloudProvider) EnsureTCPLoadBalancerDeleted(name, region string) error {
+// EnsureLoadBalancerDeleted is an implementation of LoadBalancer.EnsureLoadBalancerDeleted.
+func (r *CloudProvider) EnsureLoadBalancerDeleted(name, region string) error {
 	name = formatLBName(name)
-	glog.Infof("EnsureTCPLoadBalancerDeleted [%s] [%s]", name, region)
+	glog.Infof("EnsureLoadBalancerDeleted [%s] [%s]", name, region)
 	lb, err := r.getLBByName(name)
 	if err != nil {
 		return err
@@ -534,6 +535,18 @@ func (r *CloudProvider) InstanceID(name string) (string, error) {
 	}
 
 	return host.Uuid, nil
+}
+
+// InstanceType returns the type of the specified instance.
+// Note that if the instance does not exist or is no longer running, we must return ("", cloudprovider.InstanceNotFound)
+func (r *CloudProvider) InstanceType(name string) (string, error) {
+	_, err := r.InstanceID(name)
+	if err != nil {
+		return "", err
+	}
+
+	// Maybe do something smarter here
+	return "rancher", nil
 }
 
 // List lists instances that match 'filter' which is a regular expression which must match the entire instance name (fqdn)

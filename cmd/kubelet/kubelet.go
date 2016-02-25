@@ -28,12 +28,12 @@ import (
 
 	"k8s.io/kubernetes/cmd/kubelet/app"
 	"k8s.io/kubernetes/cmd/kubelet/app/options"
+	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/version/verflag"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	cadvisor "k8s.io/kubernetes/pkg/kubelet/cadvisor/rancher"
 	"k8s.io/kubernetes/pkg/kubelet/dockertools"
@@ -58,31 +58,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := app.Run(s, nil); err != nil {
+	if err := app.Run(s, cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 }
 
-func injectRancherCfg(s *app.KubeletServer) (*app.KubeletConfig, error) {
+func injectRancherCfg(s *options.KubeletServer) (*app.KubeletConfig, error) {
 	if strings.ToLower(s.CloudProvider) != "rancher" {
 		return nil, nil
 	}
 
-	cfg, err := s.UnsecuredKubeletConfig()
+	cfg, err := app.UnsecuredKubeletConfig(s)
 	if err != nil {
 		return nil, err
 	}
 
-	clientConfig, err := s.CreateAPIServerClientConfig()
+	clientConfig, err := app.CreateAPIServerClientConfig(s)
 	if err == nil {
-		cfg.KubeClient, err = client.New(clientConfig)
+		cfg.KubeClient, err = clientset.NewForConfig(clientConfig)
 
 		// make a separate client for events
 		eventClientConfig := *clientConfig
 		eventClientConfig.QPS = s.EventRecordQPS
 		eventClientConfig.Burst = s.EventBurst
-		cfg.EventClient, err = client.New(&eventClientConfig)
+		cfg.EventClient, err = clientset.NewForConfig(&eventClientConfig)
 	}
 	if err != nil && len(s.APIServerList) > 0 {
 		glog.Warningf("No API client: %v", err)
@@ -103,9 +103,6 @@ func injectRancherCfg(s *app.KubeletServer) (*app.KubeletConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// for rancher monitoring
-	cfg.DockerDaemonContainer = ""
 
 	// reusing rancher's cadvisor
 	cfg.CAdvisorInterface, err = cadvisor.New("http://127.0.0.1:9344")
