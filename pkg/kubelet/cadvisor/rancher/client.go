@@ -65,6 +65,16 @@ func (self *Client) ContainerInfo(name string, query *info.ContainerInfoRequest)
 	return
 }
 
+func (self *Client) ContainerInfoV2(name string, options infov2.RequestOptions) (cinfo map[string]infov2.ContainerInfo, err error) {
+	u := self.containerInfoUrl(name)
+	ret := map[string]infov2.ContainerInfo{}
+	if err = self.httpGetJsonData(&ret, &options, u, fmt.Sprintf("container info for %q", name)); err != nil {
+		return
+	}
+	cinfo = ret
+	return
+}
+
 // Returns the information about all subcontainers (recursive) of the specified container (including itself).
 func (self *Client) SubcontainersInfo(name string, query *info.ContainerInfoRequest) ([]*info.ContainerInfo, error) {
 	var response []*info.ContainerInfo

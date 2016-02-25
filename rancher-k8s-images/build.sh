@@ -25,7 +25,7 @@ done
 echo Done loading images
 
 echo Tagging images
-docker images | grep -m 3 kube | while read -r line ; do
+docker images | grep -m 3 google_containers/kube | while read -r line ; do
     parts=($line)
     IMAGE_NAME=$(echo "${parts[0]}" | awk -F '/' '{print $3}')
     echo "Taggging  ${parts[0]}:${parts[1]} as $REPO/$IMAGE_NAME:$TAG"

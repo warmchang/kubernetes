@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 
 	"github.com/golang/glog"
 	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
@@ -39,13 +40,22 @@ func NewOOMAdjuster() *OOMAdjuster {
 }
 
 func getPids(cgroupName string) ([]int, error) {
+
 	fsManager := fs.Manager{
 		Cgroups: &configs.Cgroup{
 			Parent: "/",
 			Name:   cgroupName,
 		},
 	}
-	return fsManager.GetPids()
+	pids, err := fsManager.GetPids()
+	// When docker is nested in docker the cgroups look like /docker/:id/docker/:id.
+	// In this situation we need to ignore the first portion of the path.
+	i := strings.LastIndex(cgroupName, "/docker")
+	if err != nil && i > 0 {
+		return getPids(cgroupName[i:])
+	} else {
+		return pids, err
+	}
 }
 
 // Writes 'value' to /proc/<pid>/oom_score_adj. PID = 0 means self
