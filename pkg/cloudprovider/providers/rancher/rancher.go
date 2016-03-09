@@ -602,16 +602,17 @@ func (r *CloudProvider) getHostByName(name string) (*client.Host, error) {
 		return nil, fmt.Errorf("Coudln't get host by name [%s]. Error: %#v", name, err)
 	}
 
-	if len(hosts.Data) == 0 {
-		return nil, cloudprovider.InstanceNotFound
-	}
-
 	hostsToReturn := make([]client.Host, 0)
 	for _, host := range hosts.Data {
-		if host.Hostname == name {
+		if strings.EqualFold(host.Hostname, name) {
 			hostsToReturn = append(hostsToReturn, host)
 		}
 	}
+
+	if len(hostsToReturn) == 0 {
+		return nil, cloudprovider.InstanceNotFound
+	}
+
 	if len(hostsToReturn) > 1 {
 		return nil, fmt.Errorf("multiple instances found for name: %s", name)
 	}
