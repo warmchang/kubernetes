@@ -1,6 +1,7 @@
 package rancher
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,9 +29,13 @@ const (
 	kubernetesEnvName string = "kubernetes-loadbalancers"
 )
 
+var allowedChars = regexp.MustCompile("[^a-zA-Z0-9-]")
+var dupeHyphen = regexp.MustCompile("-+")
+
 // CloudProvider implents Instances, Zones, and LoadBalancer
 type CloudProvider struct {
 	client *client.RancherClient
+	conf   *rConfig
 }
 
 // ProviderName returns the cloud provider ID.
@@ -272,14 +277,15 @@ func (r *CloudProvider) getOrCreateEnvironment() (*client.Environment, error) {
 func (r *CloudProvider) setLBHosts(lb *client.LoadBalancerService, hosts []string) error {
 	serviceLinks := &client.SetLoadBalancerServiceLinksInput{}
 	for _, hostname := range hosts {
+		extSvcName := buildExternalServiceName(hostname)
 		opts := client.NewListOpts()
-		opts.Filters["name"] = hostname
+		opts.Filters["name"] = extSvcName
 		opts.Filters["environmentId"] = lb.EnvironmentId
 		opts.Filters["removed_null"] = "1"
 
 		exSvces, err := r.client.ExternalService.List(opts)
 		if err != nil {
-			return fmt.Errorf("Couldn't get external service %s for LB %s. Error: %#v.", hostname, lb.Name, err)
+			return fmt.Errorf("Couldn't get external service %s for LB %s. Error: %#v.", extSvcName, lb.Name, err)
 		}
 
 		var exSvc *client.ExternalService
@@ -303,14 +309,14 @@ func (r *CloudProvider) setLBHosts(lb *client.LoadBalancerService, hosts []strin
 			}
 
 			exSvc = &client.ExternalService{
-				Name:                hostname,
+				Name:                extSvcName,
 				ExternalIpAddresses: []string{coll.Data[0].Address},
 				EnvironmentId:       lb.EnvironmentId,
 			}
 			exSvc, err = r.client.ExternalService.Create(exSvc)
 			if err != nil {
 				return fmt.Errorf("Error setting hosts for LB %s. Couldn't create external service for host %s. Error: %#v",
-					lb.Name, hostname, err)
+					lb.Name, extSvcName, err)
 			}
 		}
 
@@ -347,6 +353,16 @@ func (r *CloudProvider) setLBHosts(lb *client.LoadBalancerService, hosts []strin
 	}
 
 	return nil
+}
+
+func buildExternalServiceName(hostname string) string {
+	cleaned := allowedChars.ReplaceAllString(hostname, "-")
+	cleaned = strings.Trim(cleaned, "-")
+	cleaned = dupeHyphen.ReplaceAllString(cleaned, "-")
+	if len(cleaned) > 63 {
+		cleaned = cleaned[:63]
+	}
+	return cleaned
 }
 
 type waitCallback func(result chan<- interface{}) (bool, error)
@@ -425,7 +441,7 @@ func (r *CloudProvider) getLBByName(name string) (*client.LoadBalancerService, e
 
 func (r *CloudProvider) toLBStatus(lb *client.LoadBalancerService) (*api.LoadBalancerStatus, bool, error) {
 	instAndHosts := &instanceCollection{}
-	err := getJSON(lb.Links["instances"], map[string][]string{"include": {"hosts"}}, instAndHosts)
+	err := r.getJSON(lb.Links["instances"], map[string][]string{"include": {"hosts"}}, instAndHosts)
 	if err != nil {
 		return nil, false, err
 	}
@@ -434,7 +450,7 @@ func (r *CloudProvider) toLBStatus(lb *client.LoadBalancerService) (*api.LoadBal
 	for _, i := range instAndHosts.Data {
 		for _, h := range i.Hosts {
 			hIP := &hostAndIPAddresses{}
-			err = getJSON(h.Links["self"], map[string][]string{"include": {"ipAddresses"}}, hIP)
+			err = r.getJSON(h.Links["self"], map[string][]string{"include": {"ipAddresses"}}, hIP)
 			if err != nil {
 				return nil, false, err
 			}
@@ -666,6 +682,7 @@ func newRancherCloud(config io.Reader) (cloudprovider.Interface, error) {
 
 	return &CloudProvider{
 		client: client,
+		conf:   &conf,
 	}, nil
 }
 
@@ -677,8 +694,14 @@ func getRancherClient(conf rConfig) (*client.RancherClient, error) {
 	})
 }
 
-func get(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+func (r *CloudProvider) get(url string) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("Couldn't get %s: Error creating request: %v", url, err)
+	}
+	req.Header.Add("Authorization", basicAuth(r.conf.Global.CattleAccessKey, r.conf.Global.CattleSecretKey))
+	resp, err := http.DefaultClient.Do(req)
+
 	defer resp.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't get %s: %v", url, err)
@@ -694,6 +717,11 @@ func get(url string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+func basicAuth(username, password string) string {
+	auth := username + ":" + password
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
 func metadata(path string) (string, error) {
@@ -715,13 +743,13 @@ func metadata(path string) (string, error) {
 	return ret, nil
 }
 
-func getJSON(url string, params map[string][]string, respObject interface{}) error {
+func (r *CloudProvider) getJSON(url string, params map[string][]string, respObject interface{}) error {
 	url, err := addParameters(url, params)
 	if err != nil {
 		return err
 	}
 
-	instanceRaw, err := get(url)
+	instanceRaw, err := r.get(url)
 	if err != nil {
 		return err
 	}
