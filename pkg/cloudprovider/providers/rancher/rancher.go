@@ -112,7 +112,7 @@ func (r *CloudProvider) GetLoadBalancer(name, region string) (status *api.LoadBa
 
 // EnsureLoadBalancer is an implementation of LoadBalancer.EnsureLoadBalancer.
 func (r *CloudProvider) EnsureLoadBalancer(name, region string, loadBalancerIP net.IP, ports []*api.ServicePort, hosts []string,
-	namespace types.NamespacedName, affinity api.ServiceAffinity) (*api.LoadBalancerStatus, error) {
+	namespace types.NamespacedName, affinity api.ServiceAffinity, annotations map[string]string) (*api.LoadBalancerStatus, error) {
 	name = formatLBName(name)
 	glog.Infof("EnsureLoadBalancer [%s] [%s] [%#v] [%#v] [%s] [%s]", name, region, loadBalancerIP, ports, hosts, affinity)
 
