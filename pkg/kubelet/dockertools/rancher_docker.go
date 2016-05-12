@@ -105,6 +105,28 @@ func (r *RancherDockerClient) getIp(container *docker.Container) (string, error)
 
 	rancherContainer := containers.Data[0]
 
+	// If the hostNetwork for the pod is set to true
+	if rancherContainer.NetworkMode == "host" {
+		hosts := &rancher.HostCollection{}
+		err := r.Rancher.GetLink(rancherContainer.Resource, "hosts", hosts)
+		if err != nil {
+			return "", err
+		}
+		if len(hosts.Data) == 0 {
+			return "", nil
+		}
+		host := hosts.Data[0]
+		ipAddresses := &rancher.IpAddressCollection{}
+		err = r.Rancher.GetLink(host.Resource, "ipAddresses", ipAddresses)
+		if err != nil {
+			return "", err
+		}
+		if len(ipAddresses.Data) == 0 {
+			return "", nil
+		}
+		return ipAddresses.Data[0].Address, nil
+	}
+
 	if rancherContainer.PrimaryIpAddress != "" {
 		glog.Infof("Found IP %s for container %s", rancherContainer.PrimaryIpAddress, container.ID)
 		r.cache.Add(container.ID, rancherContainer.PrimaryIpAddress)
