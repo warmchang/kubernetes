@@ -17,6 +17,6 @@ RUN curl -sfSL -o /usr/bin/share-mnt https://github.com/rancher/runc/releases/do
     chmod u+x /usr/bin/share-mnt
 
 RUN cp /usr/bin/nsenter /nsenter
-COPY entry.sh kubelet kube-proxy kube-apiserver kube-controller-manager kube-scheduler /usr/bin/
+COPY entry.sh kubelet-start.sh kubelet kube-proxy kube-apiserver kube-controller-manager kube-scheduler /usr/bin/
 
 ENTRYPOINT ["/usr/bin/entry.sh"]
