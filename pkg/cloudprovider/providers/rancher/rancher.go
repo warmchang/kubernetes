@@ -24,9 +24,10 @@ import (
 )
 
 const (
-	providerName             = "rancher"
-	lbNameFormat      string = "lb-%s"
-	kubernetesEnvName string = "kubernetes-loadbalancers"
+	providerName                = "rancher"
+	lbNameFormat         string = "lb-%s"
+	kubernetesEnvName    string = "kubernetes-loadbalancers"
+	kubernetesExternalId string = "kubernetes-loadbalancers://"
 )
 
 var allowedChars = regexp.MustCompile("[^a-zA-Z0-9-]")
@@ -253,6 +254,7 @@ func (r *CloudProvider) getOrCreateEnvironment() (*client.Environment, error) {
 	opts := client.NewListOpts()
 	opts.Filters["name"] = kubernetesEnvName
 	opts.Filters["removed_null"] = "1"
+	opts.Filters["external_id"] = kubernetesExternalId
 
 	envs, err := r.client.Environment.List(opts)
 	if err != nil {
@@ -264,7 +266,8 @@ func (r *CloudProvider) getOrCreateEnvironment() (*client.Environment, error) {
 	}
 
 	env := &client.Environment{
-		Name: kubernetesEnvName,
+		Name:       kubernetesEnvName,
+		ExternalId: kubernetesExternalId,
 	}
 
 	env, err = r.client.Environment.Create(env)
