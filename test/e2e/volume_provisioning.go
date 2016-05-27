@@ -51,7 +51,7 @@ var _ = framework.KubeDescribe("Dynamic provisioning", func() {
 
 	framework.KubeDescribe("DynamicProvisioner", func() {
 		It("should create and delete persistent volumes", func() {
-			framework.SkipUnlessProviderIs("openstack", "gce", "aws", "gke")
+			SkipUnlessProviderIs("openstack", "gce", "aws")
 			By("creating a claim with a dynamic provisioning annotation")
 			claim := createClaim(ns)
 			defer func() {
