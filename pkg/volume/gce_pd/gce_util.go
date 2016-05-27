@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 	gcecloud "k8s.io/kubernetes/pkg/cloudprovider/providers/gce"
 	"k8s.io/kubernetes/pkg/util/exec"
 	"k8s.io/kubernetes/pkg/util/keymutex"
@@ -113,7 +114,7 @@ func (util *GCEDiskUtil) DetachDisk(c *gcePersistentDiskCleaner) error {
 }
 
 func (util *GCEDiskUtil) DeleteVolume(d *gcePersistentDiskDeleter) error {
-	cloud, err := getCloudProvider(d.gcePersistentDisk.plugin)
+	cloud, err := getCloudProvider()
 	if err != nil {
 		return err
 	}
@@ -129,7 +130,7 @@ func (util *GCEDiskUtil) DeleteVolume(d *gcePersistentDiskDeleter) error {
 // CreateVolume creates a GCE PD.
 // Returns: volumeID, volumeSizeGB, labels, error
 func (gceutil *GCEDiskUtil) CreateVolume(c *gcePersistentDiskProvisioner) (string, int, map[string]string, error) {
-	cloud, err := getCloudProvider(c.gcePersistentDisk.plugin)
+	cloud, err := getCloudProvider()
 	if err != nil {
 		return "", 0, nil, err
 	}
@@ -170,7 +171,7 @@ func attachDiskAndVerify(b *gcePersistentDiskBuilder, sdBeforeSet sets.String) (
 	for numRetries := 0; numRetries < maxRetries; numRetries++ {
 		var err error
 		if gceCloud == nil {
-			gceCloud, err = getCloudProvider(b.gcePersistentDisk.plugin)
+			gceCloud, err = getCloudProvider()
 			if err != nil || gceCloud == nil {
 				// Retry on error. See issue #11321
 				glog.Errorf("Error getting GCECloudProvider while detaching PD %q: %v", b.pdName, err)
@@ -244,7 +245,7 @@ func detachDiskAndVerify(c *gcePersistentDiskCleaner) {
 	for numRetries := 0; numRetries < maxRetries; numRetries++ {
 		var err error
 		if gceCloud == nil {
-			gceCloud, err = getCloudProvider(c.gcePersistentDisk.plugin)
+			gceCloud, err = getCloudProvider()
 			if err != nil || gceCloud == nil {
 				// Retry on error. See issue #11321
 				glog.Errorf("Error getting GCECloudProvider while detaching PD %q: %v", c.pdName, err)
@@ -341,21 +342,14 @@ func pathExists(path string) (bool, error) {
 }
 
 // Return cloud provider
-func getCloudProvider(plugin *gcePersistentDiskPlugin) (*gcecloud.GCECloud, error) {
-	if plugin == nil {
-		return nil, fmt.Errorf("Failed to get GCE Cloud Provider. plugin object is nil.")
-	}
-	if plugin.host == nil {
-		return nil, fmt.Errorf("Failed to get GCE Cloud Provider. plugin.host object is nil.")
+func getCloudProvider() (*gcecloud.GCECloud, error) {
+	gceCloudProvider, err := cloudprovider.GetCloudProvider("gce", nil)
+	if err != nil || gceCloudProvider == nil {
+		return nil, err
 	}
 
-	cloudProvider := plugin.host.GetCloudProvider()
-	gceCloudProvider, ok := cloudProvider.(*gcecloud.GCECloud)
-	if !ok || gceCloudProvider == nil {
-		return nil, fmt.Errorf("Failed to get GCE Cloud Provider. plugin.host.GetCloudProvider returned %v instead", cloudProvider)
-	}
-
-	return gceCloudProvider, nil
+	// The conversion must be safe otherwise bug in GetCloudProvider()
+	return gceCloudProvider.(*gcecloud.GCECloud), nil
 }
 
 // Calls "udevadm trigger --action=change" for newly created "/dev/sd*" drives (exist only in after set).
