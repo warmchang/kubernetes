@@ -19,9 +19,15 @@ import (
 	"github.com/rancher/go-rancher/client"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/client/cache"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/types"
 )
+
+type Host struct {
+	RancherHost *client.Host
+	IPAddresses []client.IpAddress
+}
 
 const (
 	providerName                = "rancher"
@@ -35,8 +41,9 @@ var dupeHyphen = regexp.MustCompile("-+")
 
 // CloudProvider implents Instances, Zones, and LoadBalancer
 type CloudProvider struct {
-	client *client.RancherClient
-	conf   *rConfig
+	client    *client.RancherClient
+	conf      *rConfig
+	hostCache cache.Store
 }
 
 // ProviderName returns the cloud provider ID.
@@ -295,25 +302,18 @@ func (r *CloudProvider) setLBHosts(lb *client.LoadBalancerService, hosts []strin
 		if len(exSvces.Data) > 0 {
 			exSvc = &exSvces.Data[0]
 		} else {
-			host, err := r.getHostByName(hostname)
+			host, err := r.hostGetOrFetchFromCache(hostname)
 			if err != nil {
 				return fmt.Errorf("Couldn't create extrnal service %s for LB %s. Error: %#v", hostname, lb.Name, err)
 			}
 
-			coll := &client.IpAddressCollection{}
-			err = r.client.GetLink(host.Resource, "ipAddresses", coll)
-			if err != nil {
-				return fmt.Errorf("Can't create loadbalancer %s. Error getting ip addresses for host %s. Error: %#v", lb.Name,
-					hostname, err)
-			}
-
-			if len(coll.Data) < 1 {
+			if len(host.IPAddresses) < 1 {
 				continue
 			}
 
 			exSvc = &client.ExternalService{
 				Name:                extSvcName,
-				ExternalIpAddresses: []string{coll.Data[0].Address},
+				ExternalIpAddresses: []string{host.IPAddresses[0].Address},
 				EnvironmentId:       lb.EnvironmentId,
 			}
 			exSvc, err = r.client.ExternalService.Create(exSvc)
@@ -516,23 +516,13 @@ func (r *CloudProvider) deleteLBConsumedServices(lb *client.LoadBalancerService)
 // because the gce implementation makes that assumption and the comment for the interface
 // states it as a todo to clarify that it is only for the current host
 func (r *CloudProvider) NodeAddresses(name string) ([]api.NodeAddress, error) {
-	host, err := r.getHostByName(name)
+	host, err := r.hostGetOrFetchFromCache(name)
 	if err != nil {
 		return nil, err
 	}
 
-	coll := &client.IpAddressCollection{}
-	err = r.client.GetLink(host.Resource, "ipAddresses", coll)
-	if err != nil {
-		return nil, fmt.Errorf("Error getting ip addresses for node [%s]. Error: %#v", name, err)
-	}
-
-	if len(coll.Data) == 0 {
-		return nil, cloudprovider.InstanceNotFound
-	}
-
 	addresses := []api.NodeAddress{}
-	for _, ip := range coll.Data {
+	for _, ip := range host.IPAddresses {
 		addresses = append(addresses, api.NodeAddress{Type: api.NodeExternalIP, Address: ip.Address})
 	}
 
@@ -548,12 +538,12 @@ func (r *CloudProvider) ExternalID(name string) (string, error) {
 // InstanceID returns the cloud provider ID of the specified instance.
 func (r *CloudProvider) InstanceID(name string) (string, error) {
 	glog.Infof("InstanceID [%s]", name)
-	host, err := r.getHostByName(name)
+	host, err := r.hostGetOrFetchFromCache(name)
 	if err != nil {
 		return "", err
 	}
 
-	return host.Uuid, nil
+	return host.RancherHost.Uuid, nil
 }
 
 // InstanceType returns the type of the specified instance.
@@ -613,7 +603,54 @@ func (r *CloudProvider) CurrentNodeName(hostname string) (string, error) {
 	return hostname, nil
 }
 
-func (r *CloudProvider) getHostByName(name string) (*client.Host, error) {
+func (r *CloudProvider) addHostToCache(host *Host) {
+	if host != nil {
+		r.hostCache.Add(host)
+	}
+}
+
+func (r *CloudProvider) removeFromCache(name string) {
+	host := r.getHostFromCache(name)
+	if host != nil {
+		r.hostCache.Delete(host)
+	}
+}
+
+func (r *CloudProvider) getHostFromCache(name string) *Host {
+	var host *Host
+
+	// entry gets expired once retrieved
+	defer r.addHostToCache(host)
+
+	hostObj, exists, err := r.hostCache.GetByKey(name)
+	if err == nil && exists {
+		h, ok := hostObj.(*Host)
+		if ok {
+			host = h
+		}
+	}
+	return host
+}
+
+func (r *CloudProvider) hostGetOrFetchFromCache(name string) (*Host, error) {
+	host, err := r.getHostByName(name)
+	if err != nil {
+		if err == cloudprovider.InstanceNotFound {
+			// evict from cache
+			r.removeFromCache(name)
+			return nil, err
+		} else {
+			host := r.getHostFromCache(name)
+			if host != nil {
+				return host, nil
+			}
+		}
+	}
+	r.addHostToCache(host)
+	return host, nil
+}
+
+func (r *CloudProvider) getHostByName(name string) (*Host, error) {
 	opts := client.NewListOpts()
 	opts.Filters["removed_null"] = "1"
 	hosts, err := r.client.Host.List(opts)
@@ -635,7 +672,25 @@ func (r *CloudProvider) getHostByName(name string) (*client.Host, error) {
 	if len(hostsToReturn) > 1 {
 		return nil, fmt.Errorf("multiple instances found for name: %s", name)
 	}
-	return &hostsToReturn[0], nil
+
+	rancherHost := &hostsToReturn[0]
+
+	coll := &client.IpAddressCollection{}
+	err = r.client.GetLink(rancherHost.Resource, "ipAddresses", coll)
+	if err != nil {
+		return nil, fmt.Errorf("Error getting ip addresses for node [%s]. Error: %#v", name, err)
+	}
+
+	if len(coll.Data) == 0 {
+		return nil, cloudprovider.InstanceNotFound
+	}
+
+	host := &Host{
+		RancherHost: rancherHost,
+		IPAddresses: coll.Data,
+	}
+
+	return host, nil
 }
 
 // --- Zones Functions ---
@@ -683,10 +738,17 @@ func newRancherCloud(config io.Reader) (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("Could not create rancher client: %#v", err)
 	}
 
+	cache := cache.NewTTLStore(hostStoreKeyFunc, time.Duration(24)*time.Hour)
+
 	return &CloudProvider{
-		client: client,
-		conf:   &conf,
+		client:    client,
+		conf:      &conf,
+		hostCache: cache,
 	}, nil
+}
+
+func hostStoreKeyFunc(obj interface{}) (string, error) {
+	return obj.(*Host).RancherHost.Hostname, nil
 }
 
 func getRancherClient(conf rConfig) (*client.RancherClient, error) {

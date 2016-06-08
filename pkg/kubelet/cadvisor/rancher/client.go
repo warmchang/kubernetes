@@ -274,7 +274,7 @@ func (self *Client) getEventStreamingData(url string, einfo chan *info.Event) er
 	for {
 		err := dec.Decode(m)
 		if err != nil {
-			if err == io.EOF {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				break
 			}
 			// if called without &stream=true will not be able to parse event and will trigger fatal
