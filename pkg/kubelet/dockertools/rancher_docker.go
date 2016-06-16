@@ -131,8 +131,11 @@ func (r *RancherDockerClient) getIp(container *docker.Container) (string, error)
 		ipAddr = rancherContainer.PrimaryIpAddress
 	}
 
-	glog.Infof("Found IP %s for container %s", ipAddr, container.ID)
-	r.cache.Add(container.ID, ipAddr)
+	if ipAddr != "" {
+		glog.Infof("Found IP %s for container %s", ipAddr, container.ID)
+		r.cache.Add(container.ID, ipAddr)
+	}
+
 	return ipAddr, nil
 }
 
