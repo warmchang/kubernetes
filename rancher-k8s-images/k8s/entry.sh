@@ -8,7 +8,7 @@ if [ -n "$ACTION" ]; then
     mkdir -p /etc/kubernetes/ssl
     cd /etc/kubernetes/ssl
     curl -s -u $CATTLE_ACCESS_KEY:$CATTLE_SECRET_KEY -X POST $ACTION > certs.zip
-    unzip certs.zip
+    unzip -o certs.zip
     cd $OLDPWD
 
     cat > /etc/kubernetes/ssl/kubeconfig << EOF
