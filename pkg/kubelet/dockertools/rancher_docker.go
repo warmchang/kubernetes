@@ -5,11 +5,12 @@ import (
 	"strings"
 	"time"
 
-	docker "github.com/fsouza/go-dockerclient"
+	dockertypes "github.com/docker/engine-api/types"
+	dockercontainer "github.com/docker/engine-api/types/container"
 	"github.com/golang/glog"
 	"github.com/hashicorp/golang-lru"
 	rancher "github.com/rancher/go-rancher/client"
-	"k8s.io/kubernetes/pkg/kubelet/types"
+	"k8s.io/kubernetes/cmd/kubelet/app/options"
 )
 
 type RancherDockerClient struct {
@@ -31,11 +32,11 @@ func NewRancherClient(docker DockerInterface, rancher *rancher.RancherClient) (*
 	}, nil
 }
 
-func isPodContainer(config *docker.Config) bool {
-	return config.Image == types.PodInfraContainerImage
+func isPodContainer(config *dockercontainer.Config) bool {
+	return config.Image == options.GetDefaultPodInfraContainerImage()
 }
 
-func (r *RancherDockerClient) CreateContainer(createOpts docker.CreateContainerOptions) (*docker.Container, error) {
+func (r *RancherDockerClient) CreateContainer(createOpts dockertypes.ContainerCreateConfig) (*dockertypes.ContainerCreateResponse, error) {
 	if createOpts.Config.Labels == nil {
 		createOpts.Config.Labels = map[string]string{}
 	}
@@ -54,7 +55,7 @@ func (r *RancherDockerClient) CreateContainer(createOpts docker.CreateContainerO
 	return r.DockerInterface.CreateContainer(createOpts)
 }
 
-func (r *RancherDockerClient) InspectContainer(id string) (*docker.Container, error) {
+func (r *RancherDockerClient) InspectContainer(id string) (*dockertypes.ContainerJSON, error) {
 	inspect, err := r.DockerInterface.InspectContainer(id)
 	if err != nil {
 		return nil, err
@@ -67,7 +68,7 @@ func (r *RancherDockerClient) InspectContainer(id string) (*docker.Container, er
 	return inspect, err
 }
 
-func (r *RancherDockerClient) trySetIp(container *docker.Container) error {
+func (r *RancherDockerClient) trySetIp(container *dockertypes.ContainerJSON) error {
 	for i := 0; i < 600; i++ {
 		worked, err := r.setIp(container)
 		if err != nil {
@@ -82,7 +83,7 @@ func (r *RancherDockerClient) trySetIp(container *docker.Container) error {
 	return fmt.Errorf("Failed to find IP for %s", container.ID)
 }
 
-func (r *RancherDockerClient) getIp(container *docker.Container) (string, error) {
+func (r *RancherDockerClient) getIp(container *dockertypes.ContainerJSON) (string, error) {
 	if val, ok := r.cache.Get(container.ID); ok {
 		if ip, ok := val.(string); ok {
 			return ip, nil
@@ -139,7 +140,7 @@ func (r *RancherDockerClient) getIp(container *docker.Container) (string, error)
 	return ipAddr, nil
 }
 
-func (r *RancherDockerClient) setIp(container *docker.Container) (bool, error) {
+func (r *RancherDockerClient) setIp(container *dockertypes.ContainerJSON) (bool, error) {
 	ip, err := r.getIp(container)
 	if ip != "" && err == nil {
 		container.NetworkSettings.IPAddress = ip

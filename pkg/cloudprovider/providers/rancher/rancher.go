@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,7 +20,6 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/cache"
 	"k8s.io/kubernetes/pkg/cloudprovider"
-	"k8s.io/kubernetes/pkg/types"
 )
 
 type Host struct {
@@ -29,9 +27,13 @@ type Host struct {
 	IPAddresses []client.IpAddress
 }
 
+type PublicEndpoint struct {
+	IPAddress string
+	Port      int
+}
+
 const (
 	providerName                = "rancher"
-	lbNameFormat         string = "lb-%s"
 	kubernetesEnvName    string = "kubernetes-loadbalancers"
 	kubernetesExternalId string = "kubernetes-loadbalancers://"
 )
@@ -102,9 +104,9 @@ type hostAndIPAddresses struct {
 }
 
 // GetLoadBalancer is an implementation of LoadBalancer.GetLoadBalancer
-func (r *CloudProvider) GetLoadBalancer(name, region string) (status *api.LoadBalancerStatus, exists bool, retErr error) {
-	name = formatLBName(name)
-	glog.Infof("GetLoadBalancer [%s] [%s]", name, region)
+func (r *CloudProvider) GetLoadBalancer(service *api.Service) (status *api.LoadBalancerStatus, exists bool, retErr error) {
+	name := cloudprovider.GetLoadBalancerName(service)
+	glog.Infof("GetLoadBalancer [%s]", name)
 
 	lb, err := r.getLBByName(name)
 	if err != nil {
@@ -112,6 +114,7 @@ func (r *CloudProvider) GetLoadBalancer(name, region string) (status *api.LoadBa
 	}
 
 	if lb == nil {
+		glog.Infof("Can't find lb by name [%s]", name)
 		return &api.LoadBalancerStatus{}, false, nil
 	}
 
@@ -119,12 +122,14 @@ func (r *CloudProvider) GetLoadBalancer(name, region string) (status *api.LoadBa
 }
 
 // EnsureLoadBalancer is an implementation of LoadBalancer.EnsureLoadBalancer.
-func (r *CloudProvider) EnsureLoadBalancer(name, region string, loadBalancerIP net.IP, ports []*api.ServicePort, hosts []string,
-	namespace types.NamespacedName, affinity api.ServiceAffinity, annotations map[string]string) (*api.LoadBalancerStatus, error) {
-	name = formatLBName(name)
-	glog.Infof("EnsureLoadBalancer [%s] [%s] [%#v] [%#v] [%s] [%s]", name, region, loadBalancerIP, ports, hosts, affinity)
+func (r *CloudProvider) EnsureLoadBalancer(service *api.Service, hosts []string) (*api.LoadBalancerStatus, error) {
+	name := cloudprovider.GetLoadBalancerName(service)
+	loadBalancerIP := service.Spec.LoadBalancerIP
+	ports := service.Spec.Ports
+	affinity := service.Spec.SessionAffinity
+	glog.Infof("EnsureLoadBalancer [%s] [%#v] [%#v] [%s] [%s]", name, loadBalancerIP, ports, hosts, affinity)
 
-	if loadBalancerIP != nil {
+	if loadBalancerIP != "" {
 		// Rancher doesn't support specifying loadBalancer IP
 		return nil, fmt.Errorf("loadBalancerIP cannot be specified for Rancher LoadBalancer")
 	}
@@ -193,7 +198,18 @@ func (r *CloudProvider) EnsureLoadBalancer(name, region string, loadBalancerIP n
 		return nil, fmt.Errorf("Error creating LB %s. Couldn't activate LB. Error: %#v", name, err)
 	}
 
-	lb, err = r.client.LoadBalancerService.ById(lb.Id)
+	lb, err = r.reloadLBService(lb)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating LB %s. Couldn't reload LB to get status. Error: %#v", name, err)
+	}
+
+	epChannel := r.waitForLBPublicEndpoints(1, lb)
+	_, ok = <-epChannel
+	if !ok {
+		return nil, fmt.Errorf("Couldn't get publicEndpoints for LB %s", name)
+	}
+
+	lb, err = r.reloadLBService(lb)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating LB %s. Couldn't reload LB to get status. Error: %#v", name, err)
 	}
@@ -206,6 +222,29 @@ func (r *CloudProvider) EnsureLoadBalancer(name, region string, loadBalancerIP n
 	return status, nil
 }
 
+func (r *CloudProvider) waitForLBPublicEndpoints(count int, lb *client.LoadBalancerService) <-chan interface{} {
+	cb := func(result chan<- interface{}) (bool, error) {
+		lb, err := r.reloadLBService(lb)
+		if err != nil {
+			return false, err
+		}
+		if len(lb.PublicEndpoints) >= count {
+			result <- lb
+			return true, nil
+		}
+		return false, nil
+	}
+	return r.waitForAction("publicEndpoints", cb)
+}
+
+func (r *CloudProvider) reloadLBService(lb *client.LoadBalancerService) (*client.LoadBalancerService, error) {
+	lb, err := r.client.LoadBalancerService.ById(lb.Id)
+	if err != nil {
+		return nil, fmt.Errorf("Couldn't reload LB [%s]. Error: %#v", lb.Name, err)
+	}
+	return lb, nil
+}
+
 func convertLB(intf interface{}) *client.LoadBalancerService {
 	lb, ok := intf.(*client.LoadBalancerService)
 	if !ok {
@@ -215,9 +254,9 @@ func convertLB(intf interface{}) *client.LoadBalancerService {
 }
 
 // UpdateLoadBalancer is an implementation of LoadBalancer.UpdateLoadBalancer.
-func (r *CloudProvider) UpdateLoadBalancer(name, region string, hosts []string) error {
-	name = formatLBName(name)
-	glog.Infof("UpdateLoadBalancer [%s] [%s] [%s]", name, region, hosts)
+func (r *CloudProvider) UpdateLoadBalancer(service *api.Service, hosts []string) error {
+	name := cloudprovider.GetLoadBalancerName(service)
+	glog.Infof("UpdateLoadBalancer [%s] [%s]", name, hosts)
 	lb, err := r.getLBByName(name)
 	if err != nil {
 		return err
@@ -241,9 +280,9 @@ func (r *CloudProvider) UpdateLoadBalancer(name, region string, hosts []string) 
 }
 
 // EnsureLoadBalancerDeleted is an implementation of LoadBalancer.EnsureLoadBalancerDeleted.
-func (r *CloudProvider) EnsureLoadBalancerDeleted(name, region string) error {
-	name = formatLBName(name)
-	glog.Infof("EnsureLoadBalancerDeleted [%s] [%s]", name, region)
+func (r *CloudProvider) EnsureLoadBalancerDeleted(service *api.Service) error {
+	name := cloudprovider.GetLoadBalancerName(service)
+	glog.Infof("EnsureLoadBalancerDeleted [%s]", name)
 	lb, err := r.getLBByName(name)
 	if err != nil {
 		return err
@@ -442,25 +481,31 @@ func (r *CloudProvider) getLBByName(name string) (*client.LoadBalancerService, e
 	return &lbs.Data[0], nil
 }
 
-func (r *CloudProvider) toLBStatus(lb *client.LoadBalancerService) (*api.LoadBalancerStatus, bool, error) {
-	instAndHosts := &instanceCollection{}
-	err := r.getJSON(lb.Links["instances"], map[string][]string{"include": {"hosts"}}, instAndHosts)
+func convertObject(obj1 interface{}, obj2 interface{}) error {
+	b, err := json.Marshal(obj1)
 	if err != nil {
-		return nil, false, err
+		return err
 	}
 
+	if err := json.Unmarshal(b, obj2); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *CloudProvider) toLBStatus(lb *client.LoadBalancerService) (*api.LoadBalancerStatus, bool, error) {
+	eps := lb.PublicEndpoints
+
 	ingress := []api.LoadBalancerIngress{}
-	for _, i := range instAndHosts.Data {
-		for _, h := range i.Hosts {
-			hIP := &hostAndIPAddresses{}
-			err = r.getJSON(h.Links["self"], map[string][]string{"include": {"ipAddresses"}}, hIP)
-			if err != nil {
-				return nil, false, err
-			}
-			for _, ip := range hIP.IPAddresses {
-				ingress = append(ingress, api.LoadBalancerIngress{IP: ip.Address})
-			}
+
+	for _, epObj := range eps {
+		ep := PublicEndpoint{}
+
+		err := convertObject(epObj, &ep)
+		if err != nil {
+			return nil, false, err
 		}
+		ingress = append(ingress, api.LoadBalancerIngress{IP: ep.IPAddress})
 	}
 
 	return &api.LoadBalancerStatus{ingress}, true, nil
@@ -860,8 +905,4 @@ func portsChanged(newPorts []string, oldPorts []string) bool {
 	}
 
 	return true
-}
-
-func formatLBName(name string) string {
-	return fmt.Sprintf(lbNameFormat, name)
 }

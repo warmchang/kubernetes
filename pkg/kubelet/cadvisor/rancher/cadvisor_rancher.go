@@ -66,7 +66,7 @@ func (cc *cadvisorClient) SubcontainerInfo(name string, req *cadvisorapi.Contain
 	return result, nil
 }
 
-func (cc *cadvisorClient) DockerImagesFsInfo() (cadvisorapiv2.FsInfo, error) {
+func (cc *cadvisorClient) ImagesFsInfo() (cadvisorapiv2.FsInfo, error) {
 	return cc.getFsInfo(cadvisorfs.LabelDockerImages)
 }
 

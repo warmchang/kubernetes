@@ -54,7 +54,7 @@ var (
 type GCEDiskUtil struct{}
 
 func (util *GCEDiskUtil) DeleteVolume(d *gcePersistentDiskDeleter) error {
-	cloud, err := getCloudProvider()
+	cloud, err := getCloudProvider(nil)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (util *GCEDiskUtil) DeleteVolume(d *gcePersistentDiskDeleter) error {
 // CreateVolume creates a GCE PD.
 // Returns: volumeID, volumeSizeGB, labels, error
 func (gceutil *GCEDiskUtil) CreateVolume(c *gcePersistentDiskProvisioner) (string, int, map[string]string, error) {
-	cloud, err := getCloudProvider()
+	cloud, err := getCloudProvider(nil)
 	if err != nil {
 		return "", 0, nil, err
 	}
@@ -124,67 +124,6 @@ func verifyDevicePath(devicePaths []string, sdBeforeSet sets.String) (string, er
 	return "", nil
 }
 
-<<<<<<< HEAD
-=======
-// Detaches the specified persistent disk device from node, verifies that it is detached, and retries if it fails.
-// This function is intended to be called asynchronously as a go routine.
-func detachDiskAndVerify(c *gcePersistentDiskCleaner) {
-	glog.V(5).Infof("detachDiskAndVerify(...) for pd %q. Will block for pending operations", c.pdName)
-	defer runtime.HandleCrash()
-
-	// Block execution until any pending attach/detach operations for this PD have completed
-	attachDetachMutex.LockKey(c.pdName)
-	defer attachDetachMutex.UnlockKey(c.pdName)
-
-	glog.V(5).Infof("detachDiskAndVerify(...) for pd %q. Awake and ready to execute.", c.pdName)
-
-	devicePaths := getDiskByIdPaths(c.gcePersistentDisk)
-	var gceCloud *gcecloud.GCECloud
-	for numRetries := 0; numRetries < maxRetries; numRetries++ {
-		var err error
-		if gceCloud == nil {
-			gceCloud, err = getCloudProvider()
-			if err != nil || gceCloud == nil {
-				// Retry on error. See issue #11321
-				glog.Errorf("Error getting GCECloudProvider while detaching PD %q: %v", c.pdName, err)
-				time.Sleep(errorSleepDuration)
-				continue
-			}
-		}
-
-		if numRetries > 0 {
-			glog.Warningf("Retrying detach for GCE PD %q (retry count=%v).", c.pdName, numRetries)
-		}
-
-		if err := gceCloud.DetachDisk(c.pdName, c.plugin.host.GetHostName()); err != nil {
-			glog.Errorf("Error detaching PD %q: %v", c.pdName, err)
-			time.Sleep(errorSleepDuration)
-			continue
-		}
-
-		for numChecks := 0; numChecks < maxChecks; numChecks++ {
-			allPathsRemoved, err := verifyAllPathsRemoved(devicePaths)
-			if err != nil {
-				// Log error, if any, and continue checking periodically.
-				glog.Errorf("Error verifying GCE PD (%q) is detached: %v", c.pdName, err)
-			} else if allPathsRemoved {
-				// All paths to the PD have been successfully removed
-				unmountPDAndRemoveGlobalPath(c)
-				glog.Infof("Successfully detached GCE PD %q.", c.pdName)
-				return
-			}
-
-			// Sleep then check again
-			glog.V(3).Infof("Waiting for GCE PD %q to detach.", c.pdName)
-			time.Sleep(checkSleepDuration)
-		}
-
-	}
-
-	glog.Errorf("Failed to detach GCE PD %q. One or more mount paths was not removed.", c.pdName)
-}
-
->>>>>>> 0fe0dfe... Revert "Ensure volume GetCloudProvider code uses cloud config"
 // Unmount the global PD mount, which should be the only one, and delete it.
 func unmountPDAndRemoveGlobalPath(globalMountPath string, mounter mount.Interface) error {
 	err := mounter.Unmount(globalMountPath)
@@ -239,32 +178,23 @@ func pathExists(path string) (bool, error) {
 }
 
 // Return cloud provider
-<<<<<<< HEAD
 func getCloudProvider(cloudProvider cloudprovider.Interface) (*gcecloud.GCECloud, error) {
 	var err error
 	for numRetries := 0; numRetries < maxRetries; numRetries++ {
-		gceCloudProvider, ok := cloudProvider.(*gcecloud.GCECloud)
+		provider, err := cloudprovider.GetCloudProvider("gce", nil)
+		if err != nil {
+			return nil, err
+		}
+		gceCloudProvider, ok := provider.(*gcecloud.GCECloud)
 		if !ok || gceCloudProvider == nil {
 			// Retry on error. See issue #11321
 			glog.Errorf("Failed to get GCE Cloud Provider. plugin.host.GetCloudProvider returned %v instead", cloudProvider)
 			time.Sleep(errorSleepDuration)
 			continue
 		}
-
 		return gceCloudProvider, nil
 	}
-
 	return nil, fmt.Errorf("Failed to get GCE GCECloudProvider with error %v", err)
-=======
-func getCloudProvider() (*gcecloud.GCECloud, error) {
-	gceCloudProvider, err := cloudprovider.GetCloudProvider("gce", nil)
-	if err != nil || gceCloudProvider == nil {
-		return nil, err
-	}
-
-	// The conversion must be safe otherwise bug in GetCloudProvider()
-	return gceCloudProvider.(*gcecloud.GCECloud), nil
->>>>>>> 0fe0dfe... Revert "Ensure volume GetCloudProvider code uses cloud config"
 }
 
 // Triggers the application of udev rules by calling "udevadm trigger

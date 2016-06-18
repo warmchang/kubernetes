@@ -82,7 +82,7 @@ func injectRancherCfg(s *options.KubeletServer) (*app.KubeletConfig, error) {
 		// make a separate client for events
 		eventClientConfig := *clientConfig
 		eventClientConfig.QPS = s.EventRecordQPS
-		eventClientConfig.Burst = s.EventBurst
+		eventClientConfig.Burst = int(s.EventBurst)
 		cfg.EventClient, err = clientset.NewForConfig(&eventClientConfig)
 	}
 	if err != nil && len(s.APIServerList) > 0 {
