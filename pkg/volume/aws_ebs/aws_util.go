@@ -41,7 +41,7 @@ const (
 type AWSDiskUtil struct{}
 
 func (util *AWSDiskUtil) DeleteVolume(d *awsElasticBlockStoreDeleter) error {
-	cloud, err := getCloudProvider()
+	cloud, err := getCloudProvider(nil)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (util *AWSDiskUtil) DeleteVolume(d *awsElasticBlockStoreDeleter) error {
 // CreateVolume creates an AWS EBS volume.
 // Returns: volumeID, volumeSizeGB, labels, error
 func (util *AWSDiskUtil) CreateVolume(c *awsElasticBlockStoreProvisioner) (string, int, map[string]string, error) {
-	cloud, err := getCloudProvider()
+	cloud, err := getCloudProvider(nil)
 	if err != nil {
 		return "", 0, nil, err
 	}
@@ -166,7 +166,7 @@ func pathExists(path string) (bool, error) {
 }
 
 // Return cloud provider
-func getCloudProvider() (*aws.AWSCloud, error) {
+func getCloudProvider(plugin *awsElasticBlockStorePlugin) (*aws.AWSCloud, error) {
 	awsCloudProvider, err := cloudprovider.GetCloudProvider("aws", nil)
 	if err != nil || awsCloudProvider == nil {
 		return nil, err
