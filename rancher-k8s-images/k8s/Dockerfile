@@ -23,7 +23,7 @@ RUN cp /usr/bin/nsenter /nsenter
 COPY entry.sh kubelet-start.sh kubelet kube-proxy kube-apiserver kube-controller-manager kube-scheduler /usr/bin/
 
 RUN mkdir -p /opt/cni/bin && mkdir -p /etc/cni/net.d
-COPY bridge /opt/cni/bin/bridge
+COPY bridge /opt/cni/bin/rancher-bridge
 COPY rancher-cni-ipam /opt/cni/bin/rancher-cni-ipam
 COPY 10-rancher.conf /etc/cni/net.d/10-rancher.conf
 
