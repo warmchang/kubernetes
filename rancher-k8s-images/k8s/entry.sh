@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-UUID=$(curl -s http://rancher-metadata/2015-12-19/stacks/Kubernetes/stack/services/kubernetes/uuid)
+UUID=$(curl -s http://rancher-metadata/2015-12-19/stacks/Kubernetes/services/kubernetes/uuid)
 ACTION=$(curl -s -u $CATTLE_ACCESS_KEY:$CATTLE_SECRET_KEY "$CATTLE_URL/services?uuid=$UUID" | jq -r '.data[0].actions.certificate')
 
 if [ -n "$ACTION" ]; then
