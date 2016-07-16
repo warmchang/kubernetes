@@ -16,6 +16,8 @@ if [ ! -e ../_output/release-tars/kubernetes-server-linux-amd64.tar.gz ]; then
     echo Building kubernetes
     # Skip tests faster for development:
     KUBE_RELEASE_RUN_TESTS=n KUBE_FASTBUILD=true ../../build/release.sh
+else
+    cd build
 fi
 
 echo Unpacking kubernetes binaries
@@ -25,17 +27,7 @@ for i in kubelet kube-proxy kube-apiserver kube-controller-manager kube-schedule
     cp kubernetes/server/bin/$i k8s
 done
 
-echo Unpacking cni binaries
-[[ -d ../_output/cni ]] || mkdir -p ../_output/cni
-CNI_FILE=https://github.com/containernetworking/cni/releases/download/v0.3.0/cni-v0.3.0.tgz
-if [[ ! -f ../_output/cni/cni*tgz ]]; then
-    wget -O ../_output/cni/cni-v0.3.0.tgz ${CNI_FILE}
-fi
-tar xvfz ${PWD}/../_output/cni/cni*tgz -C ${PWD}/../_output/cni
-tar -xvfz -C ../_output/cni ../_output/cni/cni*tgz
-cp ../_output/cni/bridge k8s
-
-
+cp /home/darren/src/rancher-cni-ipam/bin/rancher-cni-ipam k8s
 
 cd k8s
 docker build -t $REPO/k8s:$TAG .
