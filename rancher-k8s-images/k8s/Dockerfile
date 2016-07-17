@@ -27,7 +27,9 @@ RUN curl -sfSL https://github.com/containernetworking/cni/releases/download/v0.3
     tar xvzf - -C /tmp ./bridge && \
     mv /tmp/bridge /opt/cni/bin/rancher-bridge
 
-COPY rancher-cni-ipam /opt/cni/bin/rancher-cni-ipam
+RUN curl -sfSL https://github.com/rancher/rancher-cni-ipam/releases/download/v0.0.1/rancher-cni-ipam.tar.gz | \
+    tar xvzf - -C /opt/cni/bin
+
 COPY 10-rancher.conf /etc/cni/net.d/10-rancher.conf
 
 ENTRYPOINT ["/usr/bin/entry.sh"]
