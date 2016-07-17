@@ -37,9 +37,6 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	cadvisor "k8s.io/kubernetes/pkg/kubelet/cadvisor/rancher"
-	"k8s.io/kubernetes/pkg/kubelet/dockertools"
-
-	rancher "github.com/rancher/go-rancher/client"
 )
 
 func main() {
@@ -96,15 +93,6 @@ func injectRancherCfg(s *options.KubeletServer) (*app.KubeletConfig, error) {
 	glog.V(2).Infof("Successfully initialized cloud provider: %q from the config file: %q\n", s.CloudProvider, s.CloudConfigFile)
 	cfg.Cloud = cloud
 
-	rancherClient, err := rancher.NewRancherClient(&rancher.ClientOpts{
-		Url:       os.Getenv("CATTLE_URL"),
-		AccessKey: os.Getenv("CATTLE_ACCESS_KEY"),
-		SecretKey: os.Getenv("CATTLE_SECRET_KEY"),
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	// reusing rancher's cadvisor
 	cfg.CAdvisorInterface, err = cadvisor.New("http://127.0.0.1:9344")
 	if err != nil {
@@ -112,6 +100,5 @@ func injectRancherCfg(s *options.KubeletServer) (*app.KubeletConfig, error) {
 		cfg.CAdvisorInterface = nil
 	}
 
-	cfg.DockerClient, err = dockertools.NewRancherClient(cfg.DockerClient, rancherClient)
 	return cfg, err
 }

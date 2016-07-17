@@ -1,5 +1,10 @@
 #!/bin/bash
-set -e
+set -e -x
+
+while ! curl -s -f http://rancher-metadata/2015-12-19/stacks/Kubernetes/services/kubernetes/uuid; do
+    echo Waiting for metadata
+    sleep 1
+done
 
 UUID=$(curl -s http://rancher-metadata/2015-12-19/stacks/Kubernetes/services/kubernetes/uuid)
 ACTION=$(curl -s -u $CATTLE_ACCESS_KEY:$CATTLE_SECRET_KEY "$CATTLE_URL/services?uuid=$UUID" | jq -r '.data[0].actions.certificate')
@@ -34,11 +39,10 @@ users:
 EOF
 fi
 
-CONTAINERIP=$(curl -s http://rancher-metadata/2015-12-19/self/container/ips/0)
-
 if [ "$1" == "kubelet" ]; then
     /usr/bin/share-mnt /var/lib/kubelet /sys -- kubelet-start.sh "$@"
 elif [ "$1" == "kube-apiserver" ]; then
+    CONTAINERIP=$(curl -s http://rancher-metadata/2015-12-19/self/container/ips/0)
     set -- "$@" "--advertise-address=$CONTAINERIP"
     exec "$@"
 else
