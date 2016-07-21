@@ -34,6 +34,7 @@ type PublicEndpoint struct {
 
 const (
 	providerName                = "rancher"
+	lbNameFormat         string = "lb-%s"
 	kubernetesEnvName    string = "kubernetes-loadbalancers"
 	kubernetesExternalId string = "kubernetes-loadbalancers://"
 )
@@ -105,7 +106,7 @@ type hostAndIPAddresses struct {
 
 // GetLoadBalancer is an implementation of LoadBalancer.GetLoadBalancer
 func (r *CloudProvider) GetLoadBalancer(service *api.Service) (status *api.LoadBalancerStatus, exists bool, retErr error) {
-	name := cloudprovider.GetLoadBalancerName(service)
+	name := formatLBName(cloudprovider.GetLoadBalancerName(service))
 	glog.Infof("GetLoadBalancer [%s]", name)
 
 	lb, err := r.getLBByName(name)
@@ -123,7 +124,7 @@ func (r *CloudProvider) GetLoadBalancer(service *api.Service) (status *api.LoadB
 
 // EnsureLoadBalancer is an implementation of LoadBalancer.EnsureLoadBalancer.
 func (r *CloudProvider) EnsureLoadBalancer(service *api.Service, hosts []string) (*api.LoadBalancerStatus, error) {
-	name := cloudprovider.GetLoadBalancerName(service)
+	name := formatLBName(cloudprovider.GetLoadBalancerName(service))
 	loadBalancerIP := service.Spec.LoadBalancerIP
 	ports := service.Spec.Ports
 	affinity := service.Spec.SessionAffinity
@@ -255,7 +256,7 @@ func convertLB(intf interface{}) *client.LoadBalancerService {
 
 // UpdateLoadBalancer is an implementation of LoadBalancer.UpdateLoadBalancer.
 func (r *CloudProvider) UpdateLoadBalancer(service *api.Service, hosts []string) error {
-	name := cloudprovider.GetLoadBalancerName(service)
+	name := formatLBName(cloudprovider.GetLoadBalancerName(service))
 	glog.Infof("UpdateLoadBalancer [%s] [%s]", name, hosts)
 	lb, err := r.getLBByName(name)
 	if err != nil {
@@ -281,7 +282,7 @@ func (r *CloudProvider) UpdateLoadBalancer(service *api.Service, hosts []string)
 
 // EnsureLoadBalancerDeleted is an implementation of LoadBalancer.EnsureLoadBalancerDeleted.
 func (r *CloudProvider) EnsureLoadBalancerDeleted(service *api.Service) error {
-	name := cloudprovider.GetLoadBalancerName(service)
+	name := formatLBName(cloudprovider.GetLoadBalancerName(service))
 	glog.Infof("EnsureLoadBalancerDeleted [%s]", name)
 	lb, err := r.getLBByName(name)
 	if err != nil {
@@ -905,4 +906,8 @@ func portsChanged(newPorts []string, oldPorts []string) bool {
 	}
 
 	return true
+}
+
+func formatLBName(name string) string {
+	return fmt.Sprintf(lbNameFormat, name)
 }
