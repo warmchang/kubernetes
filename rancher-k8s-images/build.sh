@@ -27,8 +27,6 @@ for i in kubelet kube-proxy kube-apiserver kube-controller-manager kube-schedule
     cp kubernetes/server/bin/$i k8s
 done
 
-cp /home/darren/src/rancher-cni-ipam/bin/rancher-cni-ipam k8s
-
 cd k8s
 docker build -t $REPO/k8s:$TAG .
 echo Done building $REPO/k8s:$TAG image
