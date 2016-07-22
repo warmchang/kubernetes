@@ -174,6 +174,7 @@ func (r *CloudProvider) EnsureLoadBalancer(service *api.Service, hosts []string)
 			LaunchConfig: &client.LaunchConfig{
 				Ports: lbPorts,
 			},
+			ExternalId: string(service.UID),
 		}
 
 		lb, err = r.client.LoadBalancerService.Create(lb)
