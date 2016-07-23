@@ -154,6 +154,7 @@ func (r *CloudProvider) EnsureLoadBalancer(service *api.Service, hosts []string)
 	}
 
 	if lb != nil && portsChanged(lbPorts, lb.LaunchConfig.Ports) {
+		glog.Infof("Deleting the lb because the ports changed %s", lb.Name)
 		// Cannot update ports on an LB, so if the ports have changed, need to recreate
 		err = r.deleteLoadBalancer(lb)
 		if err != nil {
@@ -188,22 +189,31 @@ func (r *CloudProvider) EnsureLoadBalancer(service *api.Service, hosts []string)
 		return nil, err
 	}
 
-	actionChannel := r.waitForLBAction("activate", lb)
-	lbInterface, ok := <-actionChannel
-	if !ok {
-		return nil, fmt.Errorf("Couldn't call activate on LB %s", lb.Name)
-	}
-	lb = convertLB(lbInterface)
-
-	_, err = r.client.LoadBalancerService.ActionActivate(lb)
-	if err != nil {
-		return nil, fmt.Errorf("Error creating LB %s. Couldn't activate LB. Error: %#v", name, err)
+	if !strings.EqualFold(lb.State, "active") {
+		actionChannel := r.waitForLBAction("activate", lb)
+		lbInterface, ok := <-actionChannel
+		if !ok {
+			return nil, fmt.Errorf("Couldn't call activate on LB %s", lb.Name)
+		}
+		lb = convertLB(lbInterface)
+		_, err = r.client.LoadBalancerService.ActionActivate(lb)
+		if err != nil {
+			return nil, fmt.Errorf("Error creating LB %s. Couldn't activate LB. Error: %#v", name, err)
+		}
 	}
 
 	lb, err = r.reloadLBService(lb)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating LB %s. Couldn't reload LB to get status. Error: %#v", name, err)
 	}
+
+	// wait till service is active
+	actionChannel := r.waitForLBAction("deactivate", lb)
+	lbInterface, ok := <-actionChannel
+	if !ok {
+		return nil, fmt.Errorf("Timeout for service to become active %s", lb.Name)
+	}
+	lb = convertLB(lbInterface)
 
 	epChannel := r.waitForLBPublicEndpoints(1, lb)
 	_, ok = <-epChannel
@@ -446,7 +456,7 @@ func (r *CloudProvider) waitForAction(action string, callback waitCallback) <-ch
 	go func() {
 		sleep := 2
 		defer close(ready)
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 30; i++ {
 			foundAction, err := callback(ready)
 			if err != nil {
 				glog.Errorf("Error: %#v", err)
@@ -902,11 +912,11 @@ func portsChanged(newPorts []string, oldPorts []string) bool {
 	sort.Strings(oldPorts)
 	for idx, p := range newPorts {
 		if p != oldPorts[idx] {
-			return false
+			return true
 		}
 	}
 
-	return true
+	return false
 }
 
 func formatLBName(name string) string {
