@@ -717,8 +717,24 @@ func (r *CloudProvider) getHostByName(name string) (*Host, error) {
 	}
 
 	hostsToReturn := make([]client.Host, 0)
+	fqdnParts := strings.Split(name, ".")
+	hostname := name
 	for _, host := range hosts.Data {
-		if strings.EqualFold(host.Hostname, name) {
+		rancherFQDNParts := strings.Split(host.Hostname, ".")
+		rancherHostname := host.Hostname
+		if len(rancherFQDNParts) > 1 {
+			// rancher uses fqdn
+			if len(fqdnParts) == 1 {
+				// truncate rancher fqdn to hostname
+				// if rancher uses fqdn but kubelet
+				// uses hostname
+				rancherHostname = rancherFQDNParts[0]
+			}
+		} else {
+			// rancher uses hostname
+			hostname = fqdnParts[0]
+		}
+		if strings.EqualFold(rancherHostname, hostname) {
 			hostsToReturn = append(hostsToReturn, host)
 		}
 	}
