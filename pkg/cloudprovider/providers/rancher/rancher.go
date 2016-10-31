@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/rancher/go-rancher/client"
+	"github.com/rancher/go-rancher/v2"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/cache"
@@ -150,7 +150,7 @@ func (r *CloudProvider) EnsureLoadBalancer(clusterName string, service *api.Serv
 		if port.NodePort == 0 {
 			glog.Warningf("Ignoring port without NodePort: %s", port)
 		}
-		lbPorts = append(lbPorts, fmt.Sprintf("%v:%v/tcp", port.Port, port.NodePort))
+		lbPorts = append(lbPorts, fmt.Sprintf("%v:%v/tcp", port.Port, port.Port))
 	}
 
 	if lb != nil && portsChanged(lbPorts, lb.LaunchConfig.Ports) {
@@ -170,11 +170,13 @@ func (r *CloudProvider) EnsureLoadBalancer(clusterName string, service *api.Serv
 		}
 
 		lb = &client.LoadBalancerService{
-			Name:          name,
-			EnvironmentId: env.Id,
+			Name:    name,
+			StackId: env.Id,
 			LaunchConfig: &client.LaunchConfig{
-				Ports: lbPorts,
+				Ports:     lbPorts,
+				ImageUuid: "docker:rancher/lb-service-haproxy:latest",
 			},
+			LbConfig: &client.LbConfig{},
 		}
 
 		lb, err = r.client.LoadBalancerService.Create(lb)
@@ -183,7 +185,7 @@ func (r *CloudProvider) EnsureLoadBalancer(clusterName string, service *api.Serv
 		}
 	}
 
-	err = r.setLBHosts(lb, hosts)
+	err = r.setLBHosts(lb, hosts, service.Spec.Ports)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +284,7 @@ func (r *CloudProvider) UpdateLoadBalancer(clusterName string, service *api.Serv
 		return err
 	}
 
-	err = r.setLBHosts(lb, hosts)
+	err = r.setLBHosts(lb, hosts, service.Spec.Ports)
 	if err != nil {
 		return err
 	}
@@ -307,13 +309,13 @@ func (r *CloudProvider) EnsureLoadBalancerDeleted(clusterName string, service *a
 	return r.deleteLoadBalancer(lb)
 }
 
-func (r *CloudProvider) getOrCreateEnvironment() (*client.Environment, error) {
+func (r *CloudProvider) getOrCreateEnvironment() (*client.Stack, error) {
 	opts := client.NewListOpts()
 	opts.Filters["name"] = kubernetesEnvName
 	opts.Filters["removed_null"] = "1"
 	opts.Filters["external_id"] = kubernetesExternalId
 
-	envs, err := r.client.Environment.List(opts)
+	envs, err := r.client.Stack.List(opts)
 	if err != nil {
 		return nil, fmt.Errorf("Coudln't get host by name [%s]. Error: %#v", kubernetesEnvName, err)
 	}
@@ -322,25 +324,26 @@ func (r *CloudProvider) getOrCreateEnvironment() (*client.Environment, error) {
 		return &envs.Data[0], nil
 	}
 
-	env := &client.Environment{
+	env := &client.Stack{
 		Name:       kubernetesEnvName,
 		ExternalId: kubernetesExternalId,
 	}
 
-	env, err = r.client.Environment.Create(env)
+	env, err = r.client.Stack.Create(env)
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't create environment for kubernetes LBs. Error: %#v", err)
+		return nil, fmt.Errorf("Couldn't create stack for kubernetes LBs. Error: %#v", err)
 	}
 	return env, nil
 }
 
-func (r *CloudProvider) setLBHosts(lb *client.LoadBalancerService, hosts []string) error {
-	serviceLinks := &client.SetLoadBalancerServiceLinksInput{}
+func (r *CloudProvider) setLBHosts(lb *client.LoadBalancerService, hosts []string, ports []api.ServicePort) error {
+	serviceLinks := &client.SetServiceLinksInput{}
+	portRules := []client.PortRule{}
 	for _, hostname := range hosts {
 		extSvcName := buildExternalServiceName(hostname)
 		opts := client.NewListOpts()
 		opts.Filters["name"] = extSvcName
-		opts.Filters["environmentId"] = lb.EnvironmentId
+		opts.Filters["stackId"] = lb.StackId
 		opts.Filters["removed_null"] = "1"
 
 		exSvces, err := r.client.ExternalService.List(opts)
@@ -364,7 +367,7 @@ func (r *CloudProvider) setLBHosts(lb *client.LoadBalancerService, hosts []strin
 			exSvc = &client.ExternalService{
 				Name:                extSvcName,
 				ExternalIpAddresses: []string{host.IPAddresses[0].Address},
-				EnvironmentId:       lb.EnvironmentId,
+				StackId:             lb.StackId,
 			}
 			exSvc, err = r.client.ExternalService.Create(exSvc)
 			if err != nil {
@@ -389,20 +392,39 @@ func (r *CloudProvider) setLBHosts(lb *client.LoadBalancerService, hosts []strin
 				return fmt.Errorf("Couldn't activate service for LB %s. Error: %#v", lb.Name, err)
 			}
 		}
-		serviceLinks.ServiceLinks = append(serviceLinks.ServiceLinks, &client.LoadBalancerServiceLink{ServiceId: exSvc.Id})
-
+		serviceLinks.ServiceLinks = append(serviceLinks.ServiceLinks, client.ServiceLink{ServiceId: exSvc.Id})
+		for _, port := range ports {
+			portRule := client.PortRule{
+				SourcePort: int64(port.Port),
+				TargetPort: int64(port.NodePort),
+				ServiceId:  exSvc.Id,
+				Protocol:   "tcp",
+			}
+			portRules = append(portRules, portRule)
+		}
 	}
 
+	// service links are still used for dependency tracking
+	// while all lb configuration is done via lbConfig/portRules
 	actionChannel := r.waitForLBAction("setservicelinks", lb)
 	lbInterface, ok := <-actionChannel
 	if !ok {
 		return fmt.Errorf("Couldn't call setservicelinks on LB %s", lb.Name)
 	}
 	lb = convertLB(lbInterface)
-
 	_, err := r.client.LoadBalancerService.ActionSetservicelinks(lb, serviceLinks)
 	if err != nil {
 		return fmt.Errorf("Error setting hosts for LB%s. Couldn't set LB service links. Error: %#v.", lb.Name, err)
+	}
+
+	toUpdate := make(map[string]interface{})
+	updatedConfig := client.LbConfig{}
+	updatedConfig.PortRules = portRules
+	toUpdate["lbConfig"] = updatedConfig
+
+	_, err = r.client.LoadBalancerService.Update(lb, toUpdate)
+	if err != nil {
+		return fmt.Errorf("Error updating port rules for LB [%s]. Error: %#v.", lb.Name, err)
 	}
 
 	return nil
