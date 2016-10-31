@@ -2219,9 +2219,8 @@
 			"Rev": "e00690e87603abe613e9f02c816c7c4bef82e063"
 		},
 		{
-			"ImportPath": "github.com/rancher/go-rancher/client",
-			"Comment": "v0.1.0-196-g09693a8",
-			"Rev": "09693a8743ba5ee58c58c1b1e8a4abd17af00d45"
+			"ImportPath": "github.com/rancher/go-rancher/v2",
+			"Rev": "58e6b4f32885bb08273787479b14d8ed22e01112"
 		},
 		{
 			"ImportPath": "github.com/renstrom/dedent",
