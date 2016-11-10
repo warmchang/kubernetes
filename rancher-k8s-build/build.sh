@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e -x
 
-cd $(dirname $0)
+cd $(dirname $0)/..
 
 KUBE_RELEASE_RUN_TESTS=n KUBE_FASTBUILD=true ./build/release.sh
 
