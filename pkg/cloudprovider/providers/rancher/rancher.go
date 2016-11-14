@@ -163,6 +163,13 @@ func (r *CloudProvider) EnsureLoadBalancer(clusterName string, service *api.Serv
 		lb = nil
 	}
 
+	var imageUUID string
+	imageUUID, fetched := r.GetSetting("lb.instance.image")
+	if !fetched || imageUUID == "" {
+		return nil, fmt.Errorf("Failed to fetch lb.instance.image setting")
+	}
+	imageUUID = fmt.Sprintf("docker:%s", imageUUID)
+
 	if lb == nil {
 		env, err := r.getOrCreateEnvironment()
 		if err != nil {
@@ -174,7 +181,7 @@ func (r *CloudProvider) EnsureLoadBalancer(clusterName string, service *api.Serv
 			StackId: env.Id,
 			LaunchConfig: &client.LaunchConfig{
 				Ports:     lbPorts,
-				ImageUuid: "docker:rancher/lb-service-haproxy:latest",
+				ImageUuid: imageUUID,
 			},
 			LbConfig: &client.LbConfig{},
 		}
@@ -233,6 +240,24 @@ func (r *CloudProvider) EnsureLoadBalancer(clusterName string, service *api.Serv
 	}
 
 	return status, nil
+}
+
+func (r *CloudProvider) GetSetting(key string) (string, bool) {
+	opts := client.NewListOpts()
+	opts.Filters["name"] = key
+	settings, err := r.client.Setting.List(opts)
+	if err != nil {
+		glog.Errorf("GetSetting(%s): Error: %s", key, err)
+		return "", false
+	}
+
+	for _, data := range settings.Data {
+		if strings.EqualFold(data.Name, key) {
+			return data.Value, true
+		}
+	}
+
+	return "", false
 }
 
 func (r *CloudProvider) waitForLBPublicEndpoints(count int, lb *client.LoadBalancerService) <-chan interface{} {
