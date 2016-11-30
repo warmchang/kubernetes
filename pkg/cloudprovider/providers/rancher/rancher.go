@@ -748,6 +748,8 @@ func (r *CloudProvider) hostGetOrFetchFromCache(name string) (*Host, error) {
 			host := r.getHostFromCache(name)
 			if host != nil {
 				return host, nil
+			} else {
+				return nil, err
 			}
 		}
 	}
