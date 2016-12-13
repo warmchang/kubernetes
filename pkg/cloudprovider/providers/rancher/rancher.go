@@ -20,6 +20,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/cache"
 	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/types"
 )
 
 type Host struct {
@@ -618,8 +619,8 @@ func (r *CloudProvider) deleteLBConsumedServices(lb *client.LoadBalancerService)
 // This implementation only returns the address of the calling instance. This is ok
 // because the gce implementation makes that assumption and the comment for the interface
 // states it as a todo to clarify that it is only for the current host
-func (r *CloudProvider) NodeAddresses(name string) ([]api.NodeAddress, error) {
-	host, err := r.hostGetOrFetchFromCache(name)
+func (r *CloudProvider) NodeAddresses(nodeName types.NodeName) ([]api.NodeAddress, error) {
+	host, err := r.hostGetOrFetchFromCache(string(nodeName))
 	if err != nil {
 		return nil, err
 	}
@@ -635,13 +636,15 @@ func (r *CloudProvider) NodeAddresses(name string) ([]api.NodeAddress, error) {
 }
 
 // ExternalID returns the cloud provider ID of the specified instance (deprecated).
-func (r *CloudProvider) ExternalID(name string) (string, error) {
+func (r *CloudProvider) ExternalID(nodeName types.NodeName) (string, error) {
+	name := string(nodeName)
 	glog.Infof("ExternalID [%s]", name)
-	return r.InstanceID(name)
+	return r.InstanceID(nodeName)
 }
 
 // InstanceID returns the cloud provider ID of the specified instance.
-func (r *CloudProvider) InstanceID(name string) (string, error) {
+func (r *CloudProvider) InstanceID(nodeName types.NodeName) (string, error) {
+	name := string(nodeName)
 	glog.Infof("InstanceID [%s]", name)
 	host, err := r.hostGetOrFetchFromCache(name)
 	if err != nil {
@@ -653,8 +656,8 @@ func (r *CloudProvider) InstanceID(name string) (string, error) {
 
 // InstanceType returns the type of the specified instance.
 // Note that if the instance does not exist or is no longer running, we must return ("", cloudprovider.InstanceNotFound)
-func (r *CloudProvider) InstanceType(name string) (string, error) {
-	_, err := r.InstanceID(name)
+func (r *CloudProvider) InstanceType(nodeName types.NodeName) (string, error) {
+	_, err := r.InstanceID(nodeName)
 	if err != nil {
 		return "", err
 	}
@@ -664,7 +667,7 @@ func (r *CloudProvider) InstanceType(name string) (string, error) {
 }
 
 // List lists instances that match 'filter' which is a regular expression which must match the entire instance name (fqdn)
-func (r *CloudProvider) List(filter string) ([]string, error) {
+func (r *CloudProvider) List(filter string) ([]types.NodeName, error) {
 	glog.Infof("List %s", filter)
 
 	opts := client.NewListOpts()
@@ -687,10 +690,10 @@ func (r *CloudProvider) List(filter string) ([]string, error) {
 		return nil, err
 	}
 
-	retHosts := []string{}
+	retHosts := []types.NodeName{}
 	for _, host := range hosts.Data {
 		if re.MatchString(host.Hostname) {
-			retHosts = append(retHosts, host.Hostname)
+			retHosts = append(retHosts, types.NodeName(host.Hostname))
 		}
 	}
 
@@ -704,8 +707,8 @@ func (r *CloudProvider) AddSSHKeyToAllInstances(user string, keyData []byte) err
 }
 
 // CurrentNodeName returns the name of the node we are currently running on
-func (r *CloudProvider) CurrentNodeName(hostname string) (string, error) {
-	return hostname, nil
+func (r *CloudProvider) CurrentNodeName(hostname string) (types.NodeName, error) {
+	return types.NodeName(hostname), nil
 }
 
 func (r *CloudProvider) addHostToCache(host *Host) {
