@@ -52,7 +52,7 @@ func init() {
 	credentialprovider.RegisterCredentialProvider("rancher-registry-creds",
 		&credentialprovider.CachingDockerConfigProvider{
 			Provider: &rancherProvider{rancherGetter},
-			Lifetime: 30 * time.Minute,
+			Lifetime: 30 * time.Second,
 		})
 }
 
