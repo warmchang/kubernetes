@@ -2219,7 +2219,13 @@
 			"Rev": "e00690e87603abe613e9f02c816c7c4bef82e063"
 		},
 		{
+			"ImportPath": "github.com/rancher/go-rancher/client",
+			"Comment": "v0.1.0-226-g58e6b4f",
+			"Rev": "58e6b4f32885bb08273787479b14d8ed22e01112"
+		},
+		{
 			"ImportPath": "github.com/rancher/go-rancher/v2",
+			"Comment": "v0.1.0-226-g58e6b4f",
 			"Rev": "58e6b4f32885bb08273787479b14d8ed22e01112"
 		},
 		{
@@ -2872,6 +2878,16 @@
 		{
 			"ImportPath": "vbom.ml/util/sortorder",
 			"Rev": "db5cfe13f5cc80a4990d98e2e1b0707a4d1a5394"
+		},
+		{
+			"ImportPath": "github.com/rancher/go-rancher/vendor/github.com/gorilla/websocket",
+			"Comment": "v0.1.0-226-g58e6b4f",
+			"Rev": "58e6b4f32885bb08273787479b14d8ed22e01112"
+		},
+		{
+			"ImportPath": "github.com/rancher/go-rancher/vendor/github.com/pkg/errors",
+			"Comment": "v0.1.0-226-g58e6b4f",
+			"Rev": "58e6b4f32885bb08273787479b14d8ed22e01112"
 		}
 	]
 }
