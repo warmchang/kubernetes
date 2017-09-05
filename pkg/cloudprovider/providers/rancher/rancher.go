@@ -18,9 +18,9 @@ import (
 	"github.com/golang/glog"
 	"github.com/rancher/go-rancher/v2"
 
+	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
-	api "k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/controller"
 )
@@ -75,14 +75,39 @@ func (r *CloudProvider) Zones() (cloudprovider.Zones, bool) {
 	return r, true
 }
 
+// GetZoneByNodeName implements Zones.GetZoneByNodeName
+// This is particularly useful in external cloud providers where the kubelet
+// does not initialize node data.
+func (r *CloudProvider) GetZoneByNodeName(nodeName types.NodeName) (cloudprovider.Zone, error) {
+	return cloudprovider.Zone{}, errors.New("GetZoneByNodeName not imeplemented")
+}
+
+// GetZoneByProviderID implements Zones.GetZoneByProviderID
+// This is particularly useful in external cloud providers where the kubelet
+// does not initialize node data.
+func (r *CloudProvider) GetZoneByProviderID(providerID string) (cloudprovider.Zone, error) {
+	return cloudprovider.Zone{}, errors.New("GetZoneByProviderID not implemented")
+}
+
 // Instances returns an implementation of Instances for Rancher
 func (r *CloudProvider) Instances() (cloudprovider.Instances, bool) {
 	return r, true
 }
 
+// InstanceExistsByProviderID returns true if the instance with the given provider id still exists and is running.
+// If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
+func (c *CloudProvider) InstanceExistsByProviderID(providerID string) (bool, error) {
+	return false, errors.New("InstanceExistsByProviderID not imeplemented")
+}
+
 // Clusters not supported
 func (r *CloudProvider) Clusters() (cloudprovider.Clusters, bool) {
 	return nil, false
+}
+
+// HasClusterID returns true if the cluster has a clusterID
+func (r *CloudProvider) HasClusterID() bool {
+	return true
 }
 
 // Routes not supported
