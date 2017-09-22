@@ -24,9 +24,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/rancher/k8s-sql"
+	_ "github.com/rancher/k8s-sql/dialect/mysql"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/apiserver/pkg/util/logs"
+	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
 	_ "k8s.io/kubernetes/pkg/client/metrics/prometheus" // for client metric registration
@@ -38,6 +41,8 @@ import (
 
 func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
+
+	factory.Register("rdbms", rdbms.NewRDBMSStorage)
 
 	s := options.NewServerRunOptions()
 	s.AddFlags(pflag.CommandLine)
