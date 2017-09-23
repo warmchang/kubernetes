@@ -26,13 +26,22 @@ EOF
 
 cat trash.in >> trash.conf
 
-cat ./Godeps/Godeps.json | jq -r '(.Deps | .[] | "\(.ImportPath) \(.Rev)\n")' | sed '/^$/d' >> trash.conf
+cat ./Godeps/Godeps.json | jq -r '(.Deps | .[] | "\(.ImportPath) \(.Rev)\n")' | sed '/^$/d' | grep -v github.com/rancher/go-rancher >> trash.conf
 
 sed -i -e '/zz_generated.openapi.go/d' .gitignore
 
-trash -k
+trash
+RVRT="github.com/ugorji/go
+    github.com/onsi/ginkgo
+    github.com/jteeuwen/go-bindata
+    github.com/exponent-io/jsonpath
+    github.com/storageos/go-api
+    github.com/vmware/govmomi
+    github.com/MakeNowJust/heredoc"
+
+for i in $RVRT; do
+    git checkout vendor/$i
+done
+
 setup_links
 ./hack/update-codegen.sh
-
-trash
-setup_links
