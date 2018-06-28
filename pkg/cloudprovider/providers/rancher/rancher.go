@@ -101,6 +101,11 @@ func (c *CloudProvider) InstanceExistsByProviderID(pctx context.Context, rovider
 	return false, errors.New("InstanceExistsByProviderID not imeplemented")
 }
 
+// InstanceShutdownByProviderID returns true if the instance is in safe state to detach volumes
+func (c *CloudProvider) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
+	return false, cloudprovider.NotImplemented
+}
+
 // Clusters not supported
 func (r *CloudProvider) Clusters() (cloudprovider.Clusters, bool) {
 	return nil, false
