@@ -26,6 +26,7 @@ import (
 	"net"
 	"strings"
 
+	libcontainersystem "github.com/opencontainers/runc/libcontainer/system"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
@@ -255,6 +256,12 @@ func newProxyServer(
 
 	iptInterface.AddReloadFunc(proxier.Sync)
 
+	var connTracker Conntracker
+	if !libcontainersystem.RunningInUserNS() {
+		// if we are in userns, sysctl does not work and connTracker should be kept nil
+		connTracker = &realConntracker{}
+	}
+
 	return &ProxyServer{
 		Client:                 client,
 		EventClient:            eventClient,
@@ -266,7 +273,7 @@ func newProxyServer(
 		Broadcaster:            eventBroadcaster,
 		Recorder:               recorder,
 		ConntrackConfiguration: config.Conntrack,
-		Conntracker:            &realConntracker{},
+		Conntracker:            connTracker,
 		ProxyMode:              proxyMode,
 		NodeRef:                nodeRef,
 		MetricsBindAddress:     config.MetricsBindAddress,
