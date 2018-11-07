@@ -143,7 +143,7 @@ type hostAndIPAddresses struct {
 
 // GetLoadBalancer is an implementation of LoadBalancer.GetLoadBalancer
 func (r *CloudProvider) GetLoadBalancer(ctx context.Context, clusterName string, service *api.Service) (status *api.LoadBalancerStatus, exists bool, retErr error) {
-	name := formatLBName(cloudprovider.GetLoadBalancerName(service))
+	name := formatLBName(r.GetLoadBalancerName(ctx, clusterName, service))
 	glog.Infof("GetLoadBalancer [%s]", name)
 
 	lb, err := r.getLBByName(name)
@@ -167,7 +167,7 @@ func (r *CloudProvider) EnsureLoadBalancer(ctx context.Context, clusterName stri
 		hosts = append(hosts, node.Name)
 	}
 
-	name := formatLBName(cloudprovider.GetLoadBalancerName(service))
+	name := formatLBName(r.GetLoadBalancerName(ctx, clusterName, service))
 	loadBalancerIP := service.Spec.LoadBalancerIP
 	ports := service.Spec.Ports
 	affinity := service.Spec.SessionAffinity
@@ -342,7 +342,7 @@ func (r *CloudProvider) UpdateLoadBalancer(ctx context.Context, clusterName stri
 		hosts = append(hosts, node.Name)
 	}
 
-	name := formatLBName(cloudprovider.GetLoadBalancerName(service))
+	name := formatLBName(r.GetLoadBalancerName(ctx, clusterName, service))
 	glog.Infof("UpdateLoadBalancer [%s] [%s]", name, hosts)
 	lb, err := r.getLBByName(name)
 	if err != nil {
@@ -368,7 +368,7 @@ func (r *CloudProvider) UpdateLoadBalancer(ctx context.Context, clusterName stri
 
 // EnsureLoadBalancerDeleted is an implementation of LoadBalancer.EnsureLoadBalancerDeleted.
 func (r *CloudProvider) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *api.Service) error {
-	name := formatLBName(cloudprovider.GetLoadBalancerName(service))
+	name := formatLBName(r.GetLoadBalancerName(ctx, clusterName, service))
 	glog.Infof("EnsureLoadBalancerDeleted [%s]", name)
 	lb, err := r.getLBByName(name)
 	if err != nil {
@@ -382,6 +382,12 @@ func (r *CloudProvider) EnsureLoadBalancerDeleted(ctx context.Context, clusterNa
 
 	return r.deleteLoadBalancer(lb)
 }
+
+
+func (r *CloudProvider) GetLoadBalancerName(ctx context.Context, clusterName string, service *api.Service) string {
+	return cloudprovider.DefaultLoadBalancerName(service)
+}
+
 
 func (r *CloudProvider) getOrCreateEnvironment() (*client.Stack, error) {
 	opts := client.NewListOpts()
