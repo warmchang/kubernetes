@@ -24,6 +24,7 @@ import (
 	"os"
 	"time"
 
+	"k8s.io/apiserver/pkg/server"
 	"k8s.io/component-base/logs"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app"
 	_ "k8s.io/kubernetes/pkg/util/prometheusclientgo" // load all the prometheus client-go plugins
@@ -33,7 +34,7 @@ import (
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	command := app.NewAPIServerCommand()
+	command := app.NewAPIServerCommand(server.SetupSignalHandler())
 
 	// TODO: once we switch everything over to Cobra commands, we can go back to calling
 	// utilflag.InitFlags() (by removing its pflag.Parse() call). For now, we have to set the
