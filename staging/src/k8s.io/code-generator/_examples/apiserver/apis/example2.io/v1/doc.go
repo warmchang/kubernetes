@@ -18,7 +18,7 @@ limitations under the License.
 // +k8s:deepcopy-gen=package
 // +k8s:defaulter-gen=TypeMeta
 // +groupName=example.test.apiserver.code-generator.k8s.io
-// +k8s:conversion-gen=k8s.io/code-generator/_examples/apiserver/apis/example2
+// +k8s:conversion-gen=k8s.io/code-generator/_examples/apiserver/apis/example2.io
 // +groupGoName=SecondExample
 
 package v1
