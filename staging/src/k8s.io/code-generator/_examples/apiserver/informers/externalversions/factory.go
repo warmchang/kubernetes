@@ -29,7 +29,7 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 	versioned "k8s.io/code-generator/_examples/apiserver/clientset/versioned"
 	example "k8s.io/code-generator/_examples/apiserver/informers/externalversions/example"
-	example2 "k8s.io/code-generator/_examples/apiserver/informers/externalversions/example2"
+	example2io "k8s.io/code-generator/_examples/apiserver/informers/externalversions/example2.io"
 	internalinterfaces "k8s.io/code-generator/_examples/apiserver/informers/externalversions/internalinterfaces"
 )
 
@@ -174,13 +174,13 @@ type SharedInformerFactory interface {
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
 	Example() example.Interface
-	SecondExample() example2.Interface
+	SecondExample() example2io.Interface
 }
 
 func (f *sharedInformerFactory) Example() example.Interface {
 	return example.New(f, f.namespace, f.tweakListOptions)
 }
 
-func (f *sharedInformerFactory) SecondExample() example2.Interface {
-	return example2.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) SecondExample() example2io.Interface {
+	return example2io.New(f, f.namespace, f.tweakListOptions)
 }

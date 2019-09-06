@@ -27,8 +27,8 @@ import (
 	clientset "k8s.io/code-generator/_examples/apiserver/clientset/internalversion"
 	exampleinternalversion "k8s.io/code-generator/_examples/apiserver/clientset/internalversion/typed/example/internalversion"
 	fakeexampleinternalversion "k8s.io/code-generator/_examples/apiserver/clientset/internalversion/typed/example/internalversion/fake"
-	secondexampleinternalversion "k8s.io/code-generator/_examples/apiserver/clientset/internalversion/typed/example2/internalversion"
-	fakesecondexampleinternalversion "k8s.io/code-generator/_examples/apiserver/clientset/internalversion/typed/example2/internalversion/fake"
+	secondexampleinternalversion "k8s.io/code-generator/_examples/apiserver/clientset/internalversion/typed/example2.io/internalversion"
+	fakesecondexampleinternalversion "k8s.io/code-generator/_examples/apiserver/clientset/internalversion/typed/example2.io/internalversion/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.

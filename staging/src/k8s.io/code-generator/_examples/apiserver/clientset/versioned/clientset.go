@@ -25,7 +25,7 @@ import (
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
 	examplev1 "k8s.io/code-generator/_examples/apiserver/clientset/versioned/typed/example/v1"
-	secondexamplev1 "k8s.io/code-generator/_examples/apiserver/clientset/versioned/typed/example2/v1"
+	secondexamplev1 "k8s.io/code-generator/_examples/apiserver/clientset/versioned/typed/example2.io/v1"
 )
 
 type Interface interface {

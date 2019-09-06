@@ -25,7 +25,7 @@ import (
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	examplev1 "k8s.io/code-generator/_examples/apiserver/apis/example/v1"
-	secondexamplev1 "k8s.io/code-generator/_examples/apiserver/apis/example2/v1"
+	secondexamplev1 "k8s.io/code-generator/_examples/apiserver/apis/example2.io/v1"
 )
 
 var Scheme = runtime.NewScheme()
