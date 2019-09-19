@@ -40,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilwait "k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/admission"
+	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericfeatures "k8s.io/apiserver/pkg/features"
@@ -163,6 +164,13 @@ cluster's shared state through which all other components interact.`,
 	return cmd
 }
 
+type startupConfig struct {
+	Handler       http.Handler
+	Authenticator authenticator.Request
+}
+
+var StartupConfig = make(chan startupConfig, 1)
+
 // Run runs the specified APIServer.  This should never exit.
 func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) error {
 	// To help debugging, immediately log version
@@ -230,6 +238,12 @@ func CreateServerChain(completedOptions completedServerRunOptions, stopCh <-chan
 			return nil, err
 		}
 	}
+
+	StartupConfig <- startupConfig{
+		Handler:       aggregatorServer.GenericAPIServer.Handler,
+		Authenticator: kubeAPIServerConfig.GenericConfig.Authentication.Authenticator,
+	}
+	close(StartupConfig)
 
 	return aggregatorServer, nil
 }
